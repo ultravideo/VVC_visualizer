@@ -2,12 +2,15 @@
 #include <fstream>
 
 
+#pragma pack(push, 1)
 struct sub_image_stats {
+    uint64_t timestamp;
     uint16_t x;
     uint16_t y;
     uint8_t width;
     uint8_t height;
 };
+#pragma pack(pop)
 
 struct sub_image {
     sub_image_stats stats;
@@ -19,7 +22,7 @@ sub_image readOneCU(std::ifstream &data_file) {
     sub_image cu;
     // Skip type and timestamp
     char temp_buffer[9];
-    data_file.read(temp_buffer, 9);
+    data_file.read(temp_buffer, 1);
     // data_file.seekg(9, std::ios::cur);
     data_file.read(reinterpret_cast<char *>(&cu.stats), sizeof(cu.stats));
     // Skip the data
@@ -37,9 +40,9 @@ sub_image readOneCU(std::ifstream &data_file) {
 
 int main() {
     // Create a blank image
-    cv::Mat image = cv::Mat::zeros(240, 416, CV_8UC3);
+    cv::Mat image = cv::Mat::zeros(720, 1280, CV_8UC3);
 
-    std::ifstream data_file("data3.dat", std::ios::binary);
+    std::ifstream data_file("data4.dat", std::ios::binary);
     // check if the file is open
     if (!data_file.is_open()) {
         std::cout << "Could not open the file" << std::endl;
@@ -48,33 +51,40 @@ int main() {
 
     // Create a window with the FULLSCREEN flag
     cv::namedWindow("Moving Line", cv::WINDOW_NORMAL | cv::WINDOW_FULLSCREEN);
-
+    uint64_t timestamp = 0;
     // Draw and display the line in each frame
     bool fullscreen = true;
     for (int i = 0;; ++i) {
-        if(data_file.eof()) {
+        if(data_file.eof() || !data_file.good()) {
             break;
         }
         // Read one CU from the data file
-        sub_image cu = readOneCU(data_file);
-        // Copy the CU into the ROI of the image
-        cu.image.copyTo(image(cu.rect));
+        uint64_t temp_timestamp = 0;
+        do {
+            sub_image cu = readOneCU(data_file);
+            if (data_file.eof() || !data_file.good()) {
+                break;
+            }
+            temp_timestamp = cu.stats.timestamp;
 
-        cv::Point top_right(cu.rect.x + cu.rect.width - 1, cu.rect.y - 1);
-        cv::Point bottom_left(cu.rect.x - 1, cu.rect.y + cu.rect.height - 1);
-        cv::Point bottom_right(cu.rect.x + cu.rect.width - 1, cu.rect.y + cu.rect.height - 1);
+            // Copy the CU into the ROI of the image
+            cu.image.copyTo(image(cu.rect));
 
-        cv::line(image, top_right, bottom_right, cv::Scalar(245, 24, 245), 1);
-        cv::line(image, bottom_right, bottom_left, cv::Scalar(245, 24, 245), 1);
+            cv::Point top_right(cu.rect.x + cu.rect.width - 1, cu.rect.y - 1);
+            cv::Point bottom_left(cu.rect.x - 1, cu.rect.y + cu.rect.height - 1);
+            cv::Point bottom_right(cu.rect.x + cu.rect.width - 1, cu.rect.y + cu.rect.height - 1);
 
+            cv::line(image, top_right, bottom_right, cv::Scalar(245, 24, 245), 1);
+            cv::line(image, bottom_right, bottom_left, cv::Scalar(245, 24, 245), 1);
 
-        // Create a copy of the image to avoid drawing on the same image in each iteration
-        cv::Mat frame = image.clone();
+        } while (temp_timestamp - timestamp < 100000000 );
+        timestamp = temp_timestamp;
+
         // Display the frame
-        cv::imshow("Moving Line", frame);
+        cv::imshow("Moving Line", image);
 
         // Toggle fullscreen on 'f' key press
-        int key = cv::waitKey(30);
+        int key = cv::waitKey(1);
         if (key == 'f' || key == 'F') {
             if (fullscreen) {
                 cv::setWindowProperty("Moving Line", cv::WND_PROP_FULLSCREEN, cv::WINDOW_NORMAL);
