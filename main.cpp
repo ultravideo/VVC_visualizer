@@ -83,8 +83,8 @@ int main() {
             // Copy the CU into the ROI of the image
             current_cu.image.copyTo(image(current_cu.rect));
 
-            cv::Point top_right(current_cu.rect.x + current_cu.rect.width - 1, current_cu.rect.y - 1);
-            cv::Point bottom_left(current_cu.rect.x - 1, current_cu.rect.y + current_cu.rect.height - 1);
+            cv::Point top_right(current_cu.rect.x + current_cu.rect.width - 1, current_cu.rect.y);
+            cv::Point bottom_left(current_cu.rect.x, current_cu.rect.y + current_cu.rect.height - 1);
             cv::Point bottom_right(current_cu.rect.x + current_cu.rect.width - 1, current_cu.rect.y + current_cu.rect.height - 1);
 
             cv::line(image, top_right, bottom_right, colors[current_cu.stats.frame_num % 4], 1);
