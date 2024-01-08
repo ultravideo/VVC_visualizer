@@ -1,4 +1,5 @@
 #include <opencv2/opencv.hpp>
+#include <SFML/Graphics.hpp>
 #include <fstream>
 
 
@@ -36,38 +37,42 @@ sub_image readOneCU(std::ifstream &data_file) {
     data_file.read(reinterpret_cast<char *>(yuv420), cu.stats.width * cu.stats.height * 3 / 2);
     cv::Mat yuvMat(cu.stats.height + cu.stats.height / 2, cu.stats.width, CV_8UC1, const_cast<unsigned char*>(yuv420));
     cu.image = cv::Mat::zeros(cu.stats.height, cu.stats.width, CV_8UC3);
-    cv::cvtColor(yuvMat, cu.image, cv::COLOR_YUV2BGR_I420);
+    cv::cvtColor(yuvMat, cu.image, cv::COLOR_YUV2RGBA_I420);
     delete[] yuv420;
     return cu;
 }
 
-
 int main() {
     // RBG -> BGR
-    static const cv::Scalar colors[4] = {
-        cv::Scalar(245, 24, 245),
-        cv::Scalar(255, 255, 5),
-        cv::Scalar(45, 255, 90),
-        cv::Scalar(255, 255, 255)
+    static const sf::Color colors[4] = {
+            sf::Color(245, 24, 245),
+            sf::Color(255, 255, 5),
+            sf::Color(45, 255, 90),
+            sf::Color(255, 255, 255)
     };
-    // Create a blank image
-    cv::Mat image = cv::Mat::zeros(720, 1280, CV_8UC3);
 
-    std::ifstream data_file("data6.dat", std::ios::binary);
+    // Create a blank image
+    sf::RenderTexture imageTexture;
+    imageTexture.create(1280, 720);
+    imageTexture.clear();
+
+    std::ifstream data_file("data4.dat", std::ios::binary);
     // check if the file is open
     if (!data_file.is_open()) {
         std::cout << "Could not open the file" << std::endl;
         return 1;
     }
 
-    // Create a window with the FULLSCREEN flag
-    cv::namedWindow("Moving Line", cv::WINDOW_NORMAL | cv::WINDOW_FULLSCREEN);
+    // Create a window
+    sf::RenderWindow window(sf::VideoMode(1280, 720), "Moving Line");
+
     uint64_t timestamp = 0;
     // Draw and display the line in each frame
     sub_image current_cu;
     current_cu.stats.timestamp = 0;
-    bool fullscreen = true;
-    for (int i = 0;; ++i) {
+    bool fullscreen = false;
+    bool running = true;
+    while (running) {
         if(data_file.eof() || !data_file.good()) {
             break;
         }
@@ -80,40 +85,74 @@ int main() {
             }
             temp_timestamp = current_cu.stats.timestamp;
 
-            // Copy the CU into the ROI of the image
-            current_cu.image.copyTo(image(current_cu.rect));
+            sf::Image cuImage;
+            cuImage.create(current_cu.stats.width, current_cu.stats.height, current_cu.image.data);
 
-            cv::Point top_right(current_cu.rect.x + current_cu.rect.width - 1, current_cu.rect.y);
-            cv::Point bottom_left(current_cu.rect.x, current_cu.rect.y + current_cu.rect.height - 1);
-            cv::Point bottom_right(current_cu.rect.x + current_cu.rect.width - 1, current_cu.rect.y + current_cu.rect.height - 1);
+            // Copy the CU into the RenderTexture
+            sf::Texture cuTexture;
+            cuTexture.loadFromImage(cuImage);
+            sf::Sprite cuSprite(cuTexture);
+            cuSprite.setPosition(current_cu.rect.x, current_cu.rect.y);
+            imageTexture.draw(cuSprite);
 
-            cv::line(image, top_right, bottom_right, colors[current_cu.stats.frame_num % 4], 1);
-            cv::line(image, bottom_right, bottom_left, colors[current_cu.stats.frame_num % 4], 1);
+            // Draw the lines on the RenderTexture
+            sf::Vertex line[] = {
+                    sf::Vertex(sf::Vector2f(current_cu.rect.x + current_cu.rect.width - 1, current_cu.rect.y), colors[current_cu.stats.frame_num % 4]),
+                    sf::Vertex(sf::Vector2f(current_cu.rect.x + current_cu.rect.width, current_cu.rect.y + current_cu.rect.height - 1), colors[current_cu.stats.frame_num % 4]),
+                    sf::Vertex(sf::Vector2f(current_cu.rect.x, current_cu.rect.y + current_cu.rect.height - 1), colors[current_cu.stats.frame_num % 4]),
+                    sf::Vertex(sf::Vector2f(current_cu.rect.x + current_cu.rect.width, current_cu.rect.y + current_cu.rect.height - 1), colors[current_cu.stats.frame_num % 4])
+            };
+            imageTexture.draw(line, 4, sf::Lines);
         }
 
         timestamp = temp_timestamp;
 
+        // Get the current size of the window
+        sf::Vector2u windowSize = window.getSize();
+
+        // Calculate the scale factors for the sprite
+        float scaleX = fullscreen ? 2 : imageTexture.getSize().x / static_cast<float>(windowSize.x);
+        float scaleY = fullscreen ? 2 : imageTexture.getSize().y / static_cast<float>(windowSize.y);
+
+
         // Display the frame
-        cv::imshow("Moving Line", image);
+        imageTexture.display();
+        sf::Sprite sprite(imageTexture.getTexture());
+
+        // Set the scale of the sprite
+        sprite.setScale(scaleX, scaleY);
+
+        window.draw(sprite);
+        window.display();
 
         // Toggle fullscreen on 'f' key press
-        int key = cv::waitKey(30);
-        if (key == 'f' || key == 'F') {
-            if (fullscreen) {
-                cv::setWindowProperty("Moving Line", cv::WND_PROP_FULLSCREEN, cv::WINDOW_NORMAL);
-            } else {
-                cv::setWindowProperty("Moving Line", cv::WND_PROP_FULLSCREEN, cv::WINDOW_FULLSCREEN);
+        sf::Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed) {
+                window.close();
+                running = false;
+                break;
             }
-            fullscreen = !fullscreen;
-        }
-        // Break the loop and end the program if the user closes the window
-        if (cv::getWindowProperty("Moving Line", cv::WND_PROP_VISIBLE) < 1) {
-            break;
+            if (event.type == sf::Event::KeyPressed) {
+                if (event.key.code == sf::Keyboard::F) {
+                    if (fullscreen) {
+                        window.create(sf::VideoMode(1280, 720), "Moving Line", sf::Style::Default);
+                    } else {
+                        window.create(sf::VideoMode(2560, 1440), "Moving Line", sf::Style::Fullscreen);
+                    }
+                    fullscreen = !fullscreen;
+                }
+                if (event.key.code == sf::Keyboard::Escape) {
+                    window.close();
+                    running = false;
+                    break;
+                }
+            }
         }
     }
 
     // Close the window after the loop
-    cv::destroyAllWindows();
+    window.close();
 
     return 0;
 }
