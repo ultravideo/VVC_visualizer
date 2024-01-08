@@ -56,6 +56,9 @@ int main() {
     imageTexture.create(1280, 720);
     imageTexture.clear();
 
+    sf::Texture cuEdgeTexture;
+    cuEdgeTexture.create(1280, 720);
+
     std::ifstream data_file("data4.dat", std::ios::binary);
     // check if the file is open
     if (!data_file.is_open()) {
@@ -72,12 +75,16 @@ int main() {
     current_cu.stats.timestamp = 0;
     bool fullscreen = false;
     bool running = true;
+    bool show_grid = true;
     while (running) {
         if(data_file.eof() || !data_file.good()) {
             break;
         }
         // Read one CU from the data file
         uint64_t temp_timestamp = current_cu.stats.timestamp;
+        sf::RenderTexture cuEdgeRenderTexture;
+        sf::Image image = cuEdgeTexture.copyToImage();
+        image.flipVertically();
         while (current_cu.stats.timestamp - timestamp < 33'000'000) {
             current_cu = readOneCU(data_file);
             if (data_file.eof() || !data_file.good() || current_cu.stats.width == 0 || current_cu.stats.height == 0 ) {
@@ -95,16 +102,29 @@ int main() {
             cuSprite.setPosition(current_cu.rect.x, current_cu.rect.y);
             imageTexture.draw(cuSprite);
 
-            // Draw the lines on the RenderTexture
-            sf::Vertex line[] = {
-                    sf::Vertex(sf::Vector2f(current_cu.rect.x + current_cu.rect.width - 1, current_cu.rect.y), colors[current_cu.stats.frame_num % 4]),
-                    sf::Vertex(sf::Vector2f(current_cu.rect.x + current_cu.rect.width, current_cu.rect.y + current_cu.rect.height - 1), colors[current_cu.stats.frame_num % 4]),
-                    sf::Vertex(sf::Vector2f(current_cu.rect.x, current_cu.rect.y + current_cu.rect.height - 1), colors[current_cu.stats.frame_num % 4]),
-                    sf::Vertex(sf::Vector2f(current_cu.rect.x + current_cu.rect.width, current_cu.rect.y + current_cu.rect.height - 1), colors[current_cu.stats.frame_num % 4])
-            };
-            imageTexture.draw(line, 4, sf::Lines);
-        }
+            for(int y = current_cu.rect.y; y < current_cu.rect.y + current_cu.rect.height - 1; y++) {
+                for(int x = current_cu.rect.x; x < current_cu.rect.x + current_cu.rect.width - 1; x++) {
+                    image.setPixel(x, y, sf::Color::Transparent);
+                }
+            }
 
+            // Draw the lines to the image
+            for (int x = current_cu.rect.x + 1; x < current_cu.rect.x + current_cu.rect.width; x++) {
+                image.setPixel(x - 1, current_cu.rect.y + current_cu.rect.height - 1, colors[current_cu.stats.frame_num % 4]);
+            }
+            for (int y = current_cu.rect.y; y < current_cu.rect.y + current_cu.rect.height; y++) {
+                image.setPixel(current_cu.rect.x + current_cu.rect.width - 1, y, colors[current_cu.stats.frame_num % 4]);
+            }
+
+        }
+        image.flipVertically();
+        cuEdgeTexture.update(image);
+
+        {
+            cuEdgeRenderTexture.create(1280, 720);
+            sf::Sprite sprite(cuEdgeTexture);
+            cuEdgeRenderTexture.draw(sprite);
+        }
         timestamp = temp_timestamp;
 
         // Get the current size of the window
@@ -123,6 +143,9 @@ int main() {
         sprite.setScale(scaleX, scaleY);
 
         window.draw(sprite);
+        if (show_grid) {
+            window.draw(sf::Sprite(cuEdgeRenderTexture.getTexture()));
+        }
         window.display();
 
         // Toggle fullscreen on 'f' key press
@@ -146,6 +169,9 @@ int main() {
                     window.close();
                     running = false;
                     break;
+                }
+                if (event.key.code == sf::Keyboard::G) {
+                    show_grid = !show_grid;
                 }
             }
         }
