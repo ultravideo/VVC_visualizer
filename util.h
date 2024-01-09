@@ -7,6 +7,16 @@
 
 
 template<typename T>
+T ceil_div(T a, T b) {
+    return (a + b - 1) / b;
+}
+
+template<typename T>
+T max(T a, T b) {
+    return a > b ? a : b;
+}
+
+template<typename T>
 T clamp(T value, T min, T max) {
     if (value < min) {
         return min;
