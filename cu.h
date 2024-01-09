@@ -35,27 +35,35 @@ struct sub_image {
     cv::Mat image;
 };
 
-sub_image readOneCU(std::ifstream &data_file) {
-    sub_image cu;
-    // Skip type and timestamp
-    char temp_buffer[9];
-    data_file.read(temp_buffer, 1);
-    // data_file.seekg(9, std::ios::cur);
-    data_file.read(reinterpret_cast<char *>(&cu.stats), sizeof(cu.stats));
+sub_image readOneCU(std::ifstream &data_file);
 
-    if (data_file.eof() || !data_file.good()) {
-        cu.stats.width = 0;
-        cu.stats.height = 0;
-        return cu;
-    }
-    cu.rect = cv::Rect(cu.stats.x, cu.stats.y, cu.stats.width, cu.stats.height);
-    uint8_t *yuv420 = new uint8_t[cu.stats.width * cu.stats.height * 3 / 2];
-    data_file.read(reinterpret_cast<char *>(yuv420), cu.stats.width * cu.stats.height * 3 / 2);
-    cv::Mat yuvMat(cu.stats.height + cu.stats.height / 2, cu.stats.width, CV_8UC1, const_cast<unsigned char *>(yuv420));
-    cu.image = cv::Mat::zeros(cu.stats.height, cu.stats.width, CV_8UC3);
-    cv::cvtColor(yuvMat, cu.image, cv::COLOR_YUV2RGBA_I420);
-    delete[] yuv420;
-    return cu;
-}
+#define GET_SPLITDATA(CU, curDepth) ((CU)->split_tree >> ((MAX((curDepth), 0) * 3)) & 7)
+
+enum split_type {
+    NO_SPLIT = 0,
+    QT_SPLIT = 1,
+    BT_HOR_SPLIT = 2,
+    BT_VER_SPLIT = 3,
+    TT_HOR_SPLIT = 4,
+    TT_VER_SPLIT = 5,
+};
+
+typedef struct {
+    int16_t x;
+    int16_t y;
+    uint8_t local_x;
+    uint8_t local_y;
+    int8_t width;
+    int8_t height;
+    int8_t chroma_width;
+    int8_t chroma_height;
+} cu_loc_t;
+
+#define LCU_WIDTH 64
+void uvg_cu_loc_ctor(cu_loc_t *loc, int x, int y, int width, int height);
+
+void walk_tree(sub_image_stats *tree, cu_loc_t const *const cuLoc, uint8_t depth, uint32_t image_width,
+               const std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> &func,
+               void *data);
 
 #endif //VISUALIZER_CU_H

@@ -7,6 +7,26 @@
 #include "util.h"
 
 
+struct func_parameters {
+    sf::RenderTexture &edgeImage;
+    const sf::Color * const colors;
+};
+
+void draw_cu(void *data, const cu_loc_t *const cuLoc, const sub_image_stats * const current_cu) {
+    func_parameters *params = (func_parameters *) data;
+    sf::RenderTexture &edgeImage = params->edgeImage;
+    const sf::Color * const colors = params->colors;
+    // Draw the lines on the RenderTexture
+    int frame_index_modulo = current_cu->frame_num % 4;
+    sf::Vertex line[] = {
+            sf::Vertex(sf::Vector2f(cuLoc->x + cuLoc->width - 1, cuLoc->y), colors[frame_index_modulo]),
+            sf::Vertex(sf::Vector2f(cuLoc->x + cuLoc->width, cuLoc->y + cuLoc->height - 1), colors[frame_index_modulo]),
+            sf::Vertex(sf::Vector2f(cuLoc->x, cuLoc->y + cuLoc->height - 1), colors[frame_index_modulo]),
+            sf::Vertex(sf::Vector2f(cuLoc->x + cuLoc->width, cuLoc->y + cuLoc->height - 1), colors[frame_index_modulo])
+    };
+    edgeImage.draw(line, 4, sf::Lines);
+}
+
 int main() {
     static const sf::Color colors[4] = {
             sf::Color(245, 24, 245),
@@ -22,9 +42,10 @@ int main() {
     imageTexture.create(width, height);
     imageTexture.clear();
 
+    sf::RenderTexture cuEdgeRenderTexture;
+    cuEdgeRenderTexture.create(width, height);
+
     sub_image_stats *stat_array = new sub_image_stats[(width / 4) * (height / 4)];
-
-
 
     sf::Texture cuEdgeTexture;
     cuEdgeTexture.create(width, height);
@@ -52,9 +73,6 @@ int main() {
         }
         // Read one CU from the data file
         uint64_t temp_timestamp = current_cu.stats.timestamp;
-        sf::RenderTexture cuEdgeRenderTexture;
-        sf::Image image = cuEdgeTexture.copyToImage();
-        image.flipVertically();
 
         sf::Image newImage;
         newImage.create(width, height, sf::Color::Transparent);
@@ -65,9 +83,10 @@ int main() {
             }
             temp_timestamp = current_cu.stats.timestamp;
 
-            for (int y = current_cu.rect.y; y < current_cu.rect.y + current_cu.rect.height - 1; y++) {
-                for (int x = current_cu.rect.x; x < current_cu.rect.x + current_cu.rect.width - 1; x++) {
-                    memcpy(&stat_array[(y / 4) * (width / 4) + (x / 4)], &current_cu.stats, sizeof(current_cu.stats));
+            for (int y = current_cu.rect.y; y < current_cu.rect.y + current_cu.rect.height - 1; y+=4) {
+                for (int x = current_cu.rect.x; x < current_cu.rect.x + current_cu.rect.width - 1; x+=4) {
+                    int index = (y / 4) * (width / 4) + (x / 4);
+                    memcpy(&stat_array[index], &current_cu.stats, sizeof(current_cu.stats));
                 }
             }
 
@@ -75,26 +94,8 @@ int main() {
             cuImage.create(current_cu.stats.width, current_cu.stats.height, current_cu.image.data);
 
             newImage.copy(cuImage, current_cu.stats.x, current_cu.stats.y);
-
-            for (int y = current_cu.rect.y; y < current_cu.rect.y + current_cu.rect.height - 1; y++) {
-                for (int x = current_cu.rect.x; x < current_cu.rect.x + current_cu.rect.width - 1; x++) {
-                    image.setPixel(x, y, sf::Color::Transparent);
-                }
-            }
-
-            // Draw the lines to the image
-            for (int x = current_cu.rect.x + 1; x < current_cu.rect.x + current_cu.rect.width; x++) {
-                image.setPixel(x - 1, current_cu.rect.y + current_cu.rect.height - 1,
-                               colors[current_cu.stats.frame_num % 4]);
-            }
-            for (int y = current_cu.rect.y; y < current_cu.rect.y + current_cu.rect.height; y++) {
-                image.setPixel(current_cu.rect.x + current_cu.rect.width - 1, y,
-                               colors[current_cu.stats.frame_num % 4]);
-            }
-
         }
-        image.flipVertically();
-        cuEdgeTexture.update(image);
+
 
         sf::Texture newTexture;
         newTexture.loadFromImage(newImage);
@@ -102,15 +103,19 @@ int main() {
         imageTexture.draw(newSprite);
 
         {
-            cuEdgeRenderTexture.create(width, height);
-            sf::Sprite sprite(cuEdgeTexture);
-            cuEdgeRenderTexture.draw(sprite);
+            cuEdgeRenderTexture.clear(sf::Color::Transparent);
+            func_parameters params = {cuEdgeRenderTexture, colors};
+            for(int y = 0; y < height; y += 64) {
+                for(int x = 0; x < width; x += 64) {
+                    cu_loc_t cuLoc;
+                    uvg_cu_loc_ctor(&cuLoc, x, y, 64, 64);
+                    walk_tree(stat_array, &cuLoc, 0, width, draw_cu, (void *) &params);
+                }
+            }
         }
         timestamp = temp_timestamp;
         // Get the position of the cursor relative to the window
         sf::Vector2i mousePosition = sf::Mouse::getPosition(window);
-
-
 
         // Get the current size of the window
         sf::Vector2u windowSize = window.getSize();
