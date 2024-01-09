@@ -47,8 +47,6 @@ int main() {
 
     sub_image_stats *stat_array = new sub_image_stats[(width / 4) * (height / 4)];
 
-    sf::Texture cuEdgeTexture;
-    cuEdgeTexture.create(width, height);
 
     std::ifstream data_file("data4.dat", std::ios::binary);
     // check if the file is open
@@ -103,15 +101,7 @@ int main() {
         imageTexture.draw(newSprite);
 
         {
-            cuEdgeRenderTexture.clear(sf::Color::Transparent);
-            func_parameters params = {cuEdgeRenderTexture, colors};
-            for(int y = 0; y < height; y += 64) {
-                for(int x = 0; x < width; x += 64) {
-                    cu_loc_t cuLoc;
-                    uvg_cu_loc_ctor(&cuLoc, x, y, 64, 64);
-                    walk_tree(stat_array, &cuLoc, 0, width, draw_cu, (void *) &params);
-                }
-            }
+
         }
         timestamp = temp_timestamp;
         // Get the position of the cursor relative to the window
@@ -137,6 +127,16 @@ int main() {
 
         window.draw(sprite);
         if (show_grid) {
+            cuEdgeRenderTexture.clear(sf::Color::Transparent);
+            func_parameters params = {cuEdgeRenderTexture, colors};
+            for(int y = 0; y < height; y += 64) {
+                for(int x = 0; x < width; x += 64) {
+                    cu_loc_t cuLoc;
+                    uvg_cu_loc_ctor(&cuLoc, x, y, 64, 64);
+                    walk_tree(stat_array, &cuLoc, 0, width, draw_cu, (void *) &params);
+                }
+            }
+            cuEdgeRenderTexture.display();
             sf::Sprite grid_sprite = sf::Sprite(cuEdgeRenderTexture.getTexture());
             grid_sprite.setScale(scaleX, scaleY);
             window.draw(grid_sprite);
@@ -154,7 +154,7 @@ int main() {
             sf::Texture zoomTexture;
             zoomTexture.loadFromImage(zoomImage);
             sf::Sprite zoomSprite(zoomTexture);
-            zoomSprite.setPosition(mousePosition.x / scaleX > width / 2 ? 0 : width - 64 * 4, 0);
+            zoomSprite.setPosition(mousePosition.x / scaleX > width / 2 ? 0 : width * scaleX - 64 * 4, 0);
             zoomSprite.setScale(4, 4);
             window.draw(zoomSprite);
         }
