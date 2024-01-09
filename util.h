@@ -12,6 +12,11 @@ T ceil_div(T a, T b) {
 }
 
 template<typename T>
+T floor_div(T a, T b) {
+    return a / b;
+}
+
+template<typename T>
 T max(T a, T b) {
     return a > b ? a : b;
 }
