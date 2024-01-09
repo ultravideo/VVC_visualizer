@@ -9,20 +9,31 @@
 
 struct func_parameters {
     sf::RenderTexture &edgeImage;
-    const sf::Color * const colors;
+    const sf::Color *const colors;
+    uint32_t top_left_x;
+    uint32_t top_left_y;
+    float scale;
 };
 
-void draw_cu(void *data, const cu_loc_t *const cuLoc, const sub_image_stats * const current_cu) {
+void draw_cu(void *data, const cu_loc_t *const cuLoc, const sub_image_stats *const current_cu) {
     func_parameters *params = (func_parameters *) data;
     sf::RenderTexture &edgeImage = params->edgeImage;
-    const sf::Color * const colors = params->colors;
+    const sf::Color *const colors = params->colors;
     // Draw the lines on the RenderTexture
     int frame_index_modulo = current_cu->frame_num % 4;
     sf::Vertex line[] = {
-            sf::Vertex(sf::Vector2f(cuLoc->x + cuLoc->width - 1, cuLoc->y), colors[frame_index_modulo]),
-            sf::Vertex(sf::Vector2f(cuLoc->x + cuLoc->width, cuLoc->y + cuLoc->height - 1), colors[frame_index_modulo]),
-            sf::Vertex(sf::Vector2f(cuLoc->x, cuLoc->y + cuLoc->height - 1), colors[frame_index_modulo]),
-            sf::Vertex(sf::Vector2f(cuLoc->x + cuLoc->width, cuLoc->y + cuLoc->height - 1), colors[frame_index_modulo])
+            sf::Vertex(sf::Vector2f(
+                    (cuLoc->x + cuLoc->width - params->top_left_x) * params->scale - 1,
+                    (cuLoc->y - params->top_left_y) * params->scale), colors[frame_index_modulo]),
+            sf::Vertex(sf::Vector2f(
+                    (cuLoc->x + cuLoc->width - params->top_left_x) * params->scale,
+                    (cuLoc->y + cuLoc->height - params->top_left_y) * params->scale - 1), colors[frame_index_modulo]),
+            sf::Vertex(sf::Vector2f(
+                    (cuLoc->x - params->top_left_x) * params->scale,
+                    (cuLoc->y + cuLoc->height - params->top_left_y) * params->scale - 1), colors[frame_index_modulo]),
+            sf::Vertex(sf::Vector2f(
+                    (cuLoc->x + cuLoc->width - params->top_left_x) * params->scale,
+                    (cuLoc->y + cuLoc->height - params->top_left_y) * params->scale - 1), colors[frame_index_modulo])
     };
     edgeImage.draw(line, 4, sf::Lines);
 }
@@ -81,11 +92,13 @@ int main() {
             }
             temp_timestamp = current_cu.stats.timestamp;
 
-            for (int y = current_cu.rect.y; y < current_cu.rect.y + current_cu.rect.height - 1; y+=4) {
-                for (int x = current_cu.rect.x; x < current_cu.rect.x + current_cu.rect.width - 1; x+=4) {
+            for (int y = current_cu.rect.y; y < current_cu.rect.y + current_cu.rect.height - 1; y += 4) {
+                for (int x = current_cu.rect.x; x < current_cu.rect.x + current_cu.rect.width - 1; x += 4) {
                     int index = (y / 4) * (width / 4) + (x / 4);
                     memcpy(&stat_array[index], &current_cu.stats, sizeof(current_cu.stats));
+                    break;
                 }
+                break;
             }
 
             sf::Image cuImage;
@@ -114,9 +127,6 @@ int main() {
         float scaleX = fullscreen ? 2 : sqrt(static_cast<float>(windowSize.x) / imageTexture.getSize().x);
         float scaleY = fullscreen ? 2 : sqrt(static_cast<float>(windowSize.y) / imageTexture.getSize().y);
 
-//        std::cout << "Mouse X: " << mousePosition.x << ", Y: " << mousePosition.y << std::endl;
-//        std::cout << imageTexture.getSize().x << ", " << imageTexture.getSize().y << std::endl;
-//        std::cout << windowSize.x << ", " << windowSize.y << std::endl;
 
         // Display the frame
         imageTexture.display();
@@ -127,10 +137,11 @@ int main() {
 
         window.draw(sprite);
         if (show_grid) {
+            cuEdgeRenderTexture.create(width * scaleX, height * scaleX);
             cuEdgeRenderTexture.clear(sf::Color::Transparent);
-            func_parameters params = {cuEdgeRenderTexture, colors};
-            for(int y = 0; y < height; y += 64) {
-                for(int x = 0; x < width; x += 64) {
+            func_parameters params = {cuEdgeRenderTexture, colors, 0, 0, scaleX};
+            for (int y = 0; y < height; y += 64) {
+                for (int x = 0; x < width; x += 64) {
                     cu_loc_t cuLoc;
                     uvg_cu_loc_ctor(&cuLoc, x, y, 64, 64);
                     walk_tree(stat_array, &cuLoc, 0, width, draw_cu, (void *) &params);
@@ -138,17 +149,17 @@ int main() {
             }
             cuEdgeRenderTexture.display();
             sf::Sprite grid_sprite = sf::Sprite(cuEdgeRenderTexture.getTexture());
-            grid_sprite.setScale(scaleX, scaleY);
+            // grid_sprite.setScale(scaleX, scaleY);
             window.draw(grid_sprite);
         }
 
         {
             sf::Image zoomImage;
             zoomImage.create(64, 64, sf::Color::Transparent);
-            zoomImage.copy(imageTexture.getTexture().copyToImage(), 0,0,
+            zoomImage.copy(imageTexture.getTexture().copyToImage(), 0, 0,
                            sf::IntRect(
                                    clamp(static_cast<int>(mousePosition.x / scaleX - 32), 0, width - 64),
-                                      clamp(static_cast<int>(mousePosition.y / scaleY - 32), 0, height - 64),
+                                   clamp(static_cast<int>(mousePosition.y / scaleY - 32), 0, height - 64),
                                    64, 64));
 
             sf::Texture zoomTexture;
