@@ -55,6 +55,24 @@ sub_image readOneCU(std::ifstream &data_file) {
     return cu;
 }
 
+
+template <typename T>
+T ceil_div(T a, T b) {
+    return (a + b - 1) / b;
+}
+
+template <typename T>
+T clamp(T value, T min, T max) {
+    if (value < min) {
+        return min;
+    }
+    if (value > max) {
+        return max;
+    }
+    return value;
+}
+
+
 int main() {
     static const sf::Color colors[4] = {
             sf::Color(245, 24, 245),
@@ -65,11 +83,17 @@ int main() {
 
     // Create a blank image
     sf::RenderTexture imageTexture;
-    imageTexture.create(1280, 720);
+    const int width = 1280;
+    const int height = 720;
+    imageTexture.create(width, height);
     imageTexture.clear();
 
+    sub_image_stats *stat_array = new sub_image_stats[(width / 4) * (height / 4)];
+
+
+
     sf::Texture cuEdgeTexture;
-    cuEdgeTexture.create(1280, 720);
+    cuEdgeTexture.create(width, height);
 
     std::ifstream data_file("data4.dat", std::ios::binary);
     // check if the file is open
@@ -79,7 +103,7 @@ int main() {
     }
 
     // Create a window
-    sf::RenderWindow window(sf::VideoMode(1280, 720), "Moving Line");
+    sf::RenderWindow window(sf::VideoMode(width, height), "Moving Line");
 
     uint64_t timestamp = 0;
     // Draw and display the line in each frame
@@ -99,13 +123,19 @@ int main() {
         image.flipVertically();
 
         sf::Image newImage;
-        newImage.create(1280, 720, sf::Color::Transparent);
+        newImage.create(width, height, sf::Color::Transparent);
         while (current_cu.stats.timestamp - timestamp < 33'000'000) {
             current_cu = readOneCU(data_file);
             if (data_file.eof() || !data_file.good() || current_cu.stats.width == 0 || current_cu.stats.height == 0) {
                 break;
             }
             temp_timestamp = current_cu.stats.timestamp;
+
+            for (int y = current_cu.rect.y; y < current_cu.rect.y + current_cu.rect.height - 1; y++) {
+                for (int x = current_cu.rect.x; x < current_cu.rect.x + current_cu.rect.width - 1; x++) {
+                    memcpy(&stat_array[(y / 4) * (width / 4) + (x / 4)], &current_cu.stats, sizeof(current_cu.stats));
+                }
+            }
 
             sf::Image cuImage;
             cuImage.create(current_cu.stats.width, current_cu.stats.height, current_cu.image.data);
@@ -138,7 +168,7 @@ int main() {
         imageTexture.draw(newSprite);
 
         {
-            cuEdgeRenderTexture.create(1280, 720);
+            cuEdgeRenderTexture.create(width, height);
             sf::Sprite sprite(cuEdgeTexture);
             cuEdgeRenderTexture.draw(sprite);
         }
@@ -172,6 +202,24 @@ int main() {
             grid_sprite.setScale(scaleX, scaleY);
             window.draw(grid_sprite);
         }
+
+        {
+            sf::Image zoomImage;
+            zoomImage.create(64, 64, sf::Color::Transparent);
+            zoomImage.copy(imageTexture.getTexture().copyToImage(), 0,0,
+                           sf::IntRect(
+                                   clamp(static_cast<int>(mousePosition.x / scaleX - 32), 0, width - 64),
+                                      clamp(static_cast<int>(mousePosition.y / scaleY - 32), 0, height - 64),
+                                   64, 64));
+
+            sf::Texture zoomTexture;
+            zoomTexture.loadFromImage(zoomImage);
+            sf::Sprite zoomSprite(zoomTexture);
+            zoomSprite.setPosition(mousePosition.x / scaleX > width / 2 ? 0 : width - 64 * 4, 0);
+            zoomSprite.setScale(4, 4);
+            window.draw(zoomSprite);
+        }
+
         window.display();
 
         // Toggle fullscreen on 'f' key press
@@ -185,7 +233,7 @@ int main() {
             if (event.type == sf::Event::KeyPressed) {
                 if (event.key.code == sf::Keyboard::F) {
                     if (fullscreen) {
-                        window.create(sf::VideoMode(1280, 720), "Moving Line", sf::Style::Default);
+                        window.create(sf::VideoMode(width, height), "Moving Line", sf::Style::Default);
                     } else {
                         window.create(sf::VideoMode(2560, 1440), "Moving Line", sf::Style::Fullscreen);
                     }
