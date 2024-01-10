@@ -6,6 +6,9 @@
 #include "cu.h"
 #include "util.h"
 
+#define _USE_MATH_DEFINES
+
+#include "cmath"
 
 struct func_parameters {
     sf::RenderTexture &edgeImage;
@@ -36,6 +39,55 @@ void draw_cu(void *data, const cu_loc_t *const cuLoc, const sub_image_stats *con
                     (cuLoc->y + cuLoc->height - params->top_left_y) * params->scale - 1), colors[frame_index_modulo])
     };
     edgeImage.draw(line, 4, sf::Lines);
+
+    // Visualize intra angle if the CU is big enough
+    if (cuLoc->height * params->scale >= 7.5 && cuLoc->width * params->scale >= 7.5) {
+        const sf::Vector2f center = sf::Vector2f(
+                (cuLoc->x + cuLoc->width / 2 - params->top_left_x) * params->scale,
+                (cuLoc->y + cuLoc->height / 2 - params->top_left_y) * params->scale);
+        if (!current_cu->is_mip && current_cu->intra_mode >= 2) {
+            static const int16_t modedisp2sampledisp[32] = {0, 1, 2, 3, 4, 6, 8, 10, 12, 14, 16, 18, 20, 23, 26, 29, 32,
+                                                            35, 39, 45, 51, 57, 64, 73, 86, 102, 128, 171, 256, 341,
+                                                            512, 1024};
+            uint16_t pred_mode = current_cu->intra_mode;
+            const bool vertical_mode = pred_mode >= 34;
+            const int32_t mode_disp = vertical_mode ? pred_mode - 50 : -((int32_t) pred_mode - 18);
+            const int32_t sample_disp = modedisp2sampledisp[abs(mode_disp)];
+            double angle = (sample_disp / 32. * M_PI) / 4.;
+            if (vertical_mode) {
+                if (mode_disp > 0) {
+                    angle = M_PI - angle;
+                } else {
+                    angle = M_PI + angle;
+                }
+            } else {
+                if (mode_disp > 0) {
+                    angle = M_PI / 2 + angle;
+                } else {
+                    angle = M_PI / 2 - angle;
+                }
+            }
+            sf::Vertex line[] = {
+                    sf::Vertex(sf::Vector2f(center.x - 3 * cos(angle), center.y - 3 * sin(angle)), sf::Color::White),
+                    sf::Vertex(sf::Vector2f(center.x + 3 * cos(angle), center.y + 3 * sin(angle)), sf::Color::White),
+            };
+            edgeImage.draw(line, 2, sf::Lines);
+        } else if (!current_cu->is_mip) {
+            sf::Vertex line[] = {
+                    sf::Vertex(sf::Vector2f(center.x - 3, center.y - 3), sf::Color::White),
+                    current_cu->intra_mode == 0 ?
+                    sf::Vertex(sf::Vector2f(center.x + 3, center.y + 3), sf::Color::White) :
+                    sf::Vertex(center, sf::Color::White)
+            };
+            edgeImage.draw(line, 2, sf::Lines);
+            sf::Vertex line2[] = {
+                    sf::Vertex(sf::Vector2f(center.x - 3, center.y + 3), sf::Color::White),
+                    sf::Vertex(sf::Vector2f(center.x + 3, center.y - 3), sf::Color::White),
+            };
+            edgeImage.draw(line2, 2, sf::Lines);
+
+        }
+    }
 }
 
 int main() {
@@ -159,7 +211,7 @@ int main() {
             window.draw(grid_sprite);
         }
 
-        if(show_zoom){
+        if (show_zoom) {
             zoomOverlayTexture.clear(sf::Color::Transparent);
             sf::Image zoomImage;
             zoomImage.create(64, 64, sf::Color::Transparent);
@@ -178,8 +230,10 @@ int main() {
             zoomSprite.setScale(4, 4);
             window.draw(zoomSprite);
 
-            int top_left_needed_cu_x = clamp(floor_div(static_cast<int>(mousePosition.x / scaleX - 32), 64) * 64, 0, (width / 64 - 2) * 64);
-            int top_left_needed_cu_y = clamp(floor_div(static_cast<int>(mousePosition.y / scaleY - 32), 64) * 64, 0, (height / 64 - 2) * 64);
+            int top_left_needed_cu_x = clamp(floor_div(static_cast<int>(mousePosition.x / scaleX - 32), 64) * 64, 0,
+                                             (width / 64 - 2) * 64);
+            int top_left_needed_cu_y = clamp(floor_div(static_cast<int>(mousePosition.y / scaleY - 32), 64) * 64, 0,
+                                             (height / 64 - 2) * 64);
 
             func_parameters params = {zoomOverlayTexture, colors,
                                       static_cast<uint32_t>(top_left_needed_cu_x),
