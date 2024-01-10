@@ -78,6 +78,7 @@ int main() {
     bool fullscreen = false;
     bool running = true;
     bool show_grid = true;
+    bool show_zoom = true;
     float previous_scale = 1;
     while (running) {
         if (data_file.eof() || !data_file.good()) {
@@ -158,12 +159,12 @@ int main() {
             window.draw(grid_sprite);
         }
 
-        {
+        if(show_zoom){
             zoomOverlayTexture.clear(sf::Color::Transparent);
             sf::Image zoomImage;
             zoomImage.create(64, 64, sf::Color::Transparent);
             int top_right_x_of_zoom_area = clamp(static_cast<int>(mousePosition.x / scaleX - 32), 0, width - 64);
-            int top_right_y_of_zoom_area = clamp(static_cast<int>(mousePosition.y / scaleY - 32), 0, width - 64);
+            int top_right_y_of_zoom_area = clamp(static_cast<int>(mousePosition.y / scaleY - 32), 0, height - 64);
             zoomImage.copy(imageTexture.getTexture().copyToImage(), 0, 0,
                            sf::IntRect(
                                    top_right_x_of_zoom_area,
@@ -177,8 +178,8 @@ int main() {
             zoomSprite.setScale(4, 4);
             window.draw(zoomSprite);
 
-            int top_left_needed_cu_x = clamp(floor_div(static_cast<int>(mousePosition.x / scaleX - 32), 64) * 64, 0, width / 64 - 2);
-            int top_left_needed_cu_y = clamp(floor_div(static_cast<int>(mousePosition.y / scaleY - 32), 64) * 64, 0, height / 64 - 2);
+            int top_left_needed_cu_x = clamp(floor_div(static_cast<int>(mousePosition.x / scaleX - 32), 64) * 64, 0, (width / 64 - 2) * 64);
+            int top_left_needed_cu_y = clamp(floor_div(static_cast<int>(mousePosition.y / scaleY - 32), 64) * 64, 0, (height / 64 - 2) * 64);
 
             func_parameters params = {zoomOverlayTexture, colors,
                                       static_cast<uint32_t>(top_left_needed_cu_x),
@@ -195,7 +196,7 @@ int main() {
             zoomOverlaySprite.setPosition(mousePosition.x / scaleX > width / 2 ? 0 : width * scaleX - 64 * 4, 0);
             zoomOverlaySprite.setTextureRect(sf::IntRect(
                     (top_right_x_of_zoom_area - top_left_needed_cu_x) * 4,
-                    (top_right_y_of_zoom_area - top_left_needed_cu_y), 64 * 4, 64 * 4));
+                    (top_right_y_of_zoom_area - top_left_needed_cu_y) * 4, 64 * 4, 64 * 4));
             window.draw(zoomOverlaySprite);
         }
 
@@ -225,6 +226,9 @@ int main() {
                 }
                 if (event.key.code == sf::Keyboard::G) {
                     show_grid = !show_grid;
+                }
+                if (event.key.code == sf::Keyboard::Z) {
+                    show_zoom = !show_zoom;
                 }
             }
         }
