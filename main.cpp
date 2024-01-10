@@ -85,7 +85,32 @@ void draw_cu(void *data, const cu_loc_t *const cuLoc, const sub_image_stats *con
                     sf::Vertex(sf::Vector2f(center.x + 3, center.y - 3), sf::Color::White),
             };
             edgeImage.draw(line2, 2, sf::Lines);
-
+        }
+        else {
+            if (current_cu->mip_transpose) {
+                sf::Vertex line[] = {
+                        sf::Vertex(sf::Vector2f(center.x - 3, center.y + 3), sf::Color::White),
+                        sf::Vertex(sf::Vector2f(center.x + 3, center.y + 3), sf::Color::White),
+                };
+                edgeImage.draw(line, 2, sf::Lines);
+                sf::Vertex line2[] = {
+                        sf::Vertex(sf::Vector2f(center.x - 3, center.y - 3), sf::Color::White),
+                        sf::Vertex(sf::Vector2f(center.x + 3, center.y - 3), sf::Color::White),
+                };
+                edgeImage.draw(line2, 2, sf::Lines);
+            }
+            else {
+                sf::Vertex line[] = {
+                        sf::Vertex(sf::Vector2f(center.x - 3, center.y - 3), sf::Color::White),
+                        sf::Vertex(sf::Vector2f(center.x - 3, center.y + 3), sf::Color::White),
+                };
+                edgeImage.draw(line, 2, sf::Lines);
+                sf::Vertex line2[] = {
+                        sf::Vertex(sf::Vector2f(center.x + 3, center.y - 3), sf::Color::White),
+                        sf::Vertex(sf::Vector2f(center.x + 3, center.y + 3), sf::Color::White),
+                };
+                edgeImage.draw(line2, 2, sf::Lines);
+            }
         }
     }
 }
