@@ -45,6 +45,12 @@ void draw_cu(void *data, const cu_loc_t *const cuLoc, const sub_image_stats *con
         const sf::Vector2f center = sf::Vector2f(
                 (cuLoc->x + cuLoc->width / 2 - params->top_left_x) * params->scale,
                 (cuLoc->y + cuLoc->height / 2 - params->top_left_y) * params->scale);
+        sf::Color color = sf::Color::White;
+        if (current_cu->mrl == 1) {
+            color = sf::Color::Red;
+        } else if (current_cu->mrl == 2) {
+            color = sf::Color::Blue;
+        }
         if (!current_cu->is_mip && current_cu->intra_mode >= 2) {
             static const int16_t modedisp2sampledisp[32] = {0, 1, 2, 3, 4, 6, 8, 10, 12, 14, 16, 18, 20, 23, 26, 29, 32,
                                                             35, 39, 45, 51, 57, 64, 73, 86, 102, 128, 171, 256, 341,
@@ -68,46 +74,46 @@ void draw_cu(void *data, const cu_loc_t *const cuLoc, const sub_image_stats *con
                 }
             }
             sf::Vertex line[] = {
-                    sf::Vertex(sf::Vector2f(center.x - 3 * cos(angle), center.y - 3 * sin(angle)), sf::Color::White),
-                    sf::Vertex(sf::Vector2f(center.x + 3 * cos(angle), center.y + 3 * sin(angle)), sf::Color::White),
+                    sf::Vertex(sf::Vector2f(center.x - 3 * cos(angle), center.y - 3 * sin(angle)), color),
+                    sf::Vertex(sf::Vector2f(center.x + 3 * cos(angle), center.y + 3 * sin(angle)), color),
             };
             edgeImage.draw(line, 2, sf::Lines);
         } else if (!current_cu->is_mip) {
             sf::Vertex line[] = {
-                    sf::Vertex(sf::Vector2f(center.x - 3, center.y - 3), sf::Color::White),
+                    sf::Vertex(sf::Vector2f(center.x - 3, center.y - 3), color),
                     current_cu->intra_mode == 0 ?
-                    sf::Vertex(sf::Vector2f(center.x + 3, center.y + 3), sf::Color::White) :
-                    sf::Vertex(center, sf::Color::White)
+                    sf::Vertex(sf::Vector2f(center.x + 3, center.y + 3), color) :
+                    sf::Vertex(center, color)
             };
             edgeImage.draw(line, 2, sf::Lines);
             sf::Vertex line2[] = {
-                    sf::Vertex(sf::Vector2f(center.x - 3, center.y + 3), sf::Color::White),
-                    sf::Vertex(sf::Vector2f(center.x + 3, center.y - 3), sf::Color::White),
+                    sf::Vertex(sf::Vector2f(center.x - 3, center.y + 3), color),
+                    sf::Vertex(sf::Vector2f(center.x + 3, center.y - 3), color),
             };
             edgeImage.draw(line2, 2, sf::Lines);
         }
         else {
             if (current_cu->mip_transpose) {
                 sf::Vertex line[] = {
-                        sf::Vertex(sf::Vector2f(center.x - 3, center.y + 3), sf::Color::White),
-                        sf::Vertex(sf::Vector2f(center.x + 3, center.y + 3), sf::Color::White),
+                        sf::Vertex(sf::Vector2f(center.x - 3, center.y + 3), color),
+                        sf::Vertex(sf::Vector2f(center.x + 3, center.y + 3), color),
                 };
                 edgeImage.draw(line, 2, sf::Lines);
                 sf::Vertex line2[] = {
-                        sf::Vertex(sf::Vector2f(center.x - 3, center.y - 3), sf::Color::White),
-                        sf::Vertex(sf::Vector2f(center.x + 3, center.y - 3), sf::Color::White),
+                        sf::Vertex(sf::Vector2f(center.x - 3, center.y - 3), color),
+                        sf::Vertex(sf::Vector2f(center.x + 3, center.y - 3), color),
                 };
                 edgeImage.draw(line2, 2, sf::Lines);
             }
             else {
                 sf::Vertex line[] = {
-                        sf::Vertex(sf::Vector2f(center.x - 3, center.y - 3), sf::Color::White),
-                        sf::Vertex(sf::Vector2f(center.x - 3, center.y + 3), sf::Color::White),
+                        sf::Vertex(sf::Vector2f(center.x - 3, center.y - 3), color),
+                        sf::Vertex(sf::Vector2f(center.x - 3, center.y + 3), color),
                 };
                 edgeImage.draw(line, 2, sf::Lines);
                 sf::Vertex line2[] = {
-                        sf::Vertex(sf::Vector2f(center.x + 3, center.y - 3), sf::Color::White),
-                        sf::Vertex(sf::Vector2f(center.x + 3, center.y + 3), sf::Color::White),
+                        sf::Vertex(sf::Vector2f(center.x + 3, center.y - 3), color),
+                        sf::Vertex(sf::Vector2f(center.x + 3, center.y + 3), color),
                 };
                 edgeImage.draw(line2, 2, sf::Lines);
             }
