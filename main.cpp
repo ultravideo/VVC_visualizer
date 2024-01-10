@@ -40,6 +40,12 @@ void draw_cu(void *data, const cu_loc_t *const cuLoc, const sub_image_stats *con
     };
     edgeImage.draw(line, 4, sf::Lines);
 
+}
+
+void drawIntraModes(void *data, const cu_loc_t *const cuLoc, const sub_image_stats *const current_cu) {
+    func_parameters *params = (func_parameters *) data;
+    sf::RenderTexture &edgeImage = params->edgeImage;
+
     // Visualize intra angle if the CU is big enough
     if (cuLoc->height * params->scale >= 7.5 && cuLoc->width * params->scale >= 7.5) {
         const sf::Vector2f center = sf::Vector2f(
@@ -120,7 +126,6 @@ void draw_cu(void *data, const cu_loc_t *const cuLoc, const sub_image_stats *con
         }
     }
 }
-
 int main() {
     static const sf::Color colors[4] = {
             sf::Color(245, 24, 245),
@@ -161,6 +166,7 @@ int main() {
     bool fullscreen = false;
     bool running = true;
     bool show_grid = true;
+    bool show_intra = true;
     bool show_zoom = true;
     float previous_scale = 1;
     while (running) {
@@ -200,9 +206,6 @@ int main() {
         sf::Sprite newSprite(newTexture);
         imageTexture.draw(newSprite);
 
-        {
-
-        }
         timestamp = temp_timestamp;
         // Get the position of the cursor relative to the window
         sf::Vector2i mousePosition = sf::Mouse::getPosition(window);
@@ -223,18 +226,28 @@ int main() {
         sprite.setScale(scaleX, scaleY);
 
         window.draw(sprite);
-        if (show_grid) {
+        if (show_grid || show_intra) {
             if (previous_scale != scaleX) {
                 cuEdgeRenderTexture.create(width * scaleX, height * scaleX);
                 previous_scale = scaleX;
             }
-            cuEdgeRenderTexture.clear(sf::Color::Transparent);
+            std::vector<std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> > funcs;
+            std::vector<void *> data;
             func_parameters params = {cuEdgeRenderTexture, colors, 0, 0, scaleX};
+            if (show_grid) {
+                funcs.emplace_back(draw_cu);
+                data.push_back((void *) &params);
+            }
+            if (show_intra) {
+                funcs.emplace_back(drawIntraModes);
+                data.push_back((void *) &params);
+            }
+            cuEdgeRenderTexture.clear(sf::Color::Transparent);
             for (int y = 0; y < height; y += 64) {
                 for (int x = 0; x < width; x += 64) {
                     cu_loc_t cuLoc;
                     uvg_cu_loc_ctor(&cuLoc, x, y, 64, 64);
-                    walk_tree(stat_array, &cuLoc, 0, width, draw_cu, (void *) &params);
+                    walk_tree(stat_array, &cuLoc, 0, width, funcs, data);
                 }
             }
             cuEdgeRenderTexture.display();
@@ -269,11 +282,18 @@ int main() {
             func_parameters params = {zoomOverlayTexture, colors,
                                       static_cast<uint32_t>(top_left_needed_cu_x),
                                       static_cast<uint32_t>(top_left_needed_cu_y), 4};
+            std::vector<std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> > funcs;
+            std::vector<void *> data;
+            funcs.emplace_back(draw_cu);
+            data.push_back((void *) &params);
+            funcs.emplace_back(drawIntraModes);
+            data.push_back((void *) &params);
+
             for (int x = top_left_needed_cu_x; x < top_left_needed_cu_x + 64 * 2; x += 64) {
                 for (int y = top_left_needed_cu_y; y < top_left_needed_cu_y + 64 * 2; y += 64) {
                     cu_loc_t cuLoc;
                     uvg_cu_loc_ctor(&cuLoc, x, y, 64, 64);
-                    walk_tree(stat_array, &cuLoc, 0, width, draw_cu, (void *) &params);
+                    walk_tree(stat_array, &cuLoc, 0, width, funcs, data);
                 }
             }
             zoomOverlayTexture.display();
@@ -314,6 +334,9 @@ int main() {
                 }
                 if (event.key.code == sf::Keyboard::Z) {
                     show_zoom = !show_zoom;
+                }
+                if (event.key.code == sf::Keyboard::I) {
+                    show_intra = !show_intra;
                 }
             }
         }

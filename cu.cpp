@@ -96,8 +96,8 @@ static int get_split_locs(
 
 
 void walk_tree(sub_image_stats *tree, cu_loc_t const *const cuLoc, uint8_t depth, uint32_t image_width,
-               const std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> &func,
-               void *data) {
+               const std::vector<std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> > &funcs,
+               const std::vector<void *> &data) {
     int x = cuLoc->x;
     int y = cuLoc->y;
     int index = (y / 4) * (image_width / 4) + x / 4;
@@ -109,13 +109,15 @@ void walk_tree(sub_image_stats *tree, cu_loc_t const *const cuLoc, uint8_t depth
     unsigned int split_data = GET_SPLITDATA(current_node, depth);
 
     if (split_data == NO_SPLIT) {
-        func(data, cuLoc, current_node);
+        for (int i = 0; i < funcs.size(); i++) {
+            funcs[i](data[i], cuLoc, current_node);
+        }
         return;
     }
     cu_loc_t split_locs[4];
     uint8_t separate_chroma = 0;
     int num_split_locs = get_split_locs(cuLoc, (enum split_type) split_data, split_locs, &separate_chroma);
     for (int i = 0; i < num_split_locs; i++) {
-        walk_tree(tree, &split_locs[i], depth + 1, image_width, func, data);
+        walk_tree(tree, &split_locs[i], depth + 1, image_width, funcs, data);
     }
 }
