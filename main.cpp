@@ -247,7 +247,7 @@ int main() {
                 for (int x = 0; x < width; x += 64) {
                     cu_loc_t cuLoc;
                     uvg_cu_loc_ctor(&cuLoc, x, y, 64, 64);
-                    walk_tree(stat_array, &cuLoc, 0, width, funcs, data);
+                    walk_tree(stat_array, &cuLoc, 0, width, height, funcs, data);
                 }
             }
             cuEdgeRenderTexture.display();
@@ -293,7 +293,7 @@ int main() {
                 for (int y = top_left_needed_cu_y; y < top_left_needed_cu_y + 64 * 2; y += 64) {
                     cu_loc_t cuLoc;
                     uvg_cu_loc_ctor(&cuLoc, x, y, 64, 64);
-                    walk_tree(stat_array, &cuLoc, 0, width, funcs, data);
+                    walk_tree(stat_array, &cuLoc, 0, width, height, funcs, data);
                 }
             }
             zoomOverlayTexture.display();

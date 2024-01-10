@@ -96,10 +96,14 @@ static int get_split_locs(
 
 
 void walk_tree(sub_image_stats *tree, cu_loc_t const *const cuLoc, uint8_t depth, uint32_t image_width,
+               uint32_t image_height,
                const std::vector<std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> > &funcs,
                const std::vector<void *> &data) {
     int x = cuLoc->x;
     int y = cuLoc->y;
+    if (x < 0 || y < 0 || x >= image_width || y >= image_height) {
+        return;
+    }
     int index = (y / 4) * (image_width / 4) + x / 4;
     const sub_image_stats *current_node = &tree[index];
     if (current_node->width == 0 || current_node->height == 0) {
@@ -118,6 +122,6 @@ void walk_tree(sub_image_stats *tree, cu_loc_t const *const cuLoc, uint8_t depth
     uint8_t separate_chroma = 0;
     int num_split_locs = get_split_locs(cuLoc, (enum split_type) split_data, split_locs, &separate_chroma);
     for (int i = 0; i < num_split_locs; i++) {
-        walk_tree(tree, &split_locs[i], depth + 1, image_width, funcs, data);
+        walk_tree(tree, &split_locs[i], depth + 1, image_width, image_height, funcs, data);
     }
 }

@@ -63,7 +63,8 @@ typedef struct {
 void uvg_cu_loc_ctor(cu_loc_t *loc, int x, int y, int width, int height);
 
 void walk_tree(sub_image_stats *tree, cu_loc_t const *const cuLoc, uint8_t depth, uint32_t image_width,
-               const std::vector<std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> > &funcs,
+               uint32_t image_height, const std::vector<std::function<void(void *, const cu_loc_t *const,
+                                                                           const sub_image_stats *const)> > &funcs,
                const std::vector<void *> &data);
 
 #endif //VISUALIZER_CU_H
