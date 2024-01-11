@@ -193,6 +193,41 @@ void drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imag
 }
 
 
+void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeRenderTexture,
+                   const sub_image_stats *stat_array, sf::RenderWindow &window, bool show_grid, bool show_intra,
+                   float &previous_scale, const sf::Color *&colors, const float scaleX) {
+    if (!show_grid && !show_intra) {
+        return;
+    }
+
+    if (previous_scale != scaleX) {
+        cuEdgeRenderTexture.create(width * scaleX, height * scaleX);
+        previous_scale = scaleX;
+    }
+    std::vector<std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> > funcs;
+    std::vector<void *> data;
+    func_parameters params = {cuEdgeRenderTexture, colors, 0, 0, scaleX};
+    if (show_grid) {
+        funcs.emplace_back(draw_cu);
+        data.push_back((void *) &params);
+    }
+    if (show_intra) {
+        funcs.emplace_back(drawIntraModes);
+        data.push_back((void *) &params);
+    }
+    cuEdgeRenderTexture.clear(sf::Color::Transparent);
+    for (int y = 0; y < height; y += 64) {
+        for (int x = 0; x < width; x += 64) {
+            cu_loc_t cuLoc;
+            uvg_cu_loc_ctor(&cuLoc, x, y, 64, 64);
+            walk_tree(stat_array, &cuLoc, 0, width, height, funcs, data);
+        }
+    }
+    cuEdgeRenderTexture.display();
+    sf::Sprite grid_sprite = sf::Sprite(cuEdgeRenderTexture.getTexture());
+    window.draw(grid_sprite);
+}
+
 int main() {
     static const sf::Color colors[4] = {
             sf::Color(245, 24, 245),
@@ -318,34 +353,8 @@ int main() {
         sprite.setScale(scaleX, scaleY);
 
         window.draw(sprite);
-        if (show_grid || show_intra) {
-            if (previous_scale != scaleX) {
-                cuEdgeRenderTexture.create(width * scaleX, height * scaleX);
-                previous_scale = scaleX;
-            }
-            std::vector<std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> > funcs;
-            std::vector<void *> data;
-            func_parameters params = {cuEdgeRenderTexture, colors, 0, 0, scaleX};
-            if (show_grid) {
-                funcs.emplace_back(draw_cu);
-                data.push_back((void *) &params);
-            }
-            if (show_intra) {
-                funcs.emplace_back(drawIntraModes);
-                data.push_back((void *) &params);
-            }
-            cuEdgeRenderTexture.clear(sf::Color::Transparent);
-            for (int y = 0; y < height; y += 64) {
-                for (int x = 0; x < width; x += 64) {
-                    cu_loc_t cuLoc;
-                    uvg_cu_loc_ctor(&cuLoc, x, y, 64, 64);
-                    walk_tree(stat_array, &cuLoc, 0, width, height, funcs, data);
-                }
-            }
-            cuEdgeRenderTexture.display();
-            sf::Sprite grid_sprite = sf::Sprite(cuEdgeRenderTexture.getTexture());
-            window.draw(grid_sprite);
-        }
+        visualizeInfo(width, height, cuEdgeRenderTexture, stat_array, window, show_grid, show_intra, previous_scale,
+                      (const sf::Color *&) colors, scaleX);
 
         if (show_zoom) {
             drawZoomWindow(colors, imageTexture, width, height, stat_array, zoomOverlayTexture, window,
