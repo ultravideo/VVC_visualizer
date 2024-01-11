@@ -237,7 +237,7 @@ int main() {
     text.setPosition(20, 20);
 
     // Create a window
-    sf::RenderWindow window(sf::VideoMode(width, height), "Moving Line");
+    sf::RenderWindow window(sf::VideoMode(width, height), "VVC Visualizer");
 
     sf::Vector2i previous_mouse_position = sf::Vector2i(-1, -1);
 
@@ -377,9 +377,9 @@ int main() {
             if (event.type == sf::Event::KeyPressed) {
                 if (event.key.code == sf::Keyboard::F) {
                     if (fullscreen) {
-                        window.create(sf::VideoMode(width, height), "Moving Line", sf::Style::Default);
+                        window.create(sf::VideoMode(width, height), "VVC Visualizer", sf::Style::Default);
                     } else {
-                        window.create(sf::VideoMode(2560, 1440), "Moving Line", sf::Style::Fullscreen);
+                        window.create(sf::VideoMode(2560, 1440), "VVC Visualizer", sf::Style::Fullscreen);
                     }
                     fullscreen = !fullscreen;
                 }
