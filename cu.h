@@ -9,6 +9,9 @@
 #include <SFML/Graphics.hpp>
 #include <functional>
 
+#ifdef _MSC_VER
+#pragma pack(push, 1)
+#endif
 struct sub_image_stats {
     uint64_t timestamp;
     uint8_t frame_num;
@@ -29,7 +32,14 @@ struct sub_image_stats {
 
     uint8_t lfnst;
     uint8_t tr_idx;
-} __attribute__((packed));
+}
+#ifdef _MSC_VER
+;
+#pragma pack(pop)
+#else
+__attribute__((packed));
+#endif
+
 
 struct sub_image {
     sub_image_stats stats;
