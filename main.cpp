@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include <SFML/Graphics.hpp>
+#include <cstdint>
 
 #include "cu.h"
 #include "util.h"
@@ -18,6 +19,12 @@ struct func_parameters {
     uint32_t top_left_y;
     float scale;
 };
+
+void
+drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imageTexture, const int width, const int height,
+               const sub_image_stats *const stat_array, sf::RenderTexture &zoomOverlayTexture, sf::RenderWindow &window,
+               const sf::Vector2i &previous_mouse_position, sf::Image &zoomImage, const sf::Vector2i &mousePosition,
+               const float scaleX, const float scaleY);
 
 void draw_cu(void *data, const cu_loc_t *const cuLoc, const sub_image_stats *const current_cu) {
     func_parameters *params = (func_parameters *) data;
@@ -125,6 +132,66 @@ void drawIntraModes(void *data, const cu_loc_t *const cuLoc, const sub_image_sta
         }
     }
 }
+
+
+void drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imageTexture, const int width, const int height,
+                    const sub_image_stats *const stat_array, sf::RenderTexture &zoomOverlayTexture, sf::RenderWindow &window,
+                    sf::Vector2i &previous_mouse_position, sf::Image &zoomImage, const sf::Vector2i &mousePosition,
+                    const float scaleX, const float scaleY) {
+    int top_right_x_of_zoom_area = clamp(static_cast<int>(mousePosition.x / scaleX - 32), 0, width - 64);
+    int top_right_y_of_zoom_area = clamp(static_cast<int>(mousePosition.y / scaleY - 32), 0, height - 64);
+
+    int top_left_needed_cu_x = clamp(floor_div(static_cast<int>(mousePosition.x / scaleX - 32), 64) * 64, 0,
+                                     (width / 64 - 2) * 64);
+    int top_left_needed_cu_y = clamp(floor_div(static_cast<int>(mousePosition.y / scaleY - 32), 64) * 64, 0,
+                                     (height / 64 - 2) * 64);
+
+    if(top_right_x_of_zoom_area != previous_mouse_position.x || top_right_y_of_zoom_area != previous_mouse_position.y) {
+        previous_mouse_position.x = top_right_x_of_zoom_area;
+        previous_mouse_position.y = top_right_y_of_zoom_area;
+        zoomImage.copy(imageTexture.getTexture().copyToImage(), 0, 0,
+                       sf::IntRect(
+                               top_right_x_of_zoom_area,
+                               top_right_y_of_zoom_area,
+                               64, 64));
+        zoomOverlayTexture.clear(sf::Color::Transparent);
+
+        func_parameters params = {zoomOverlayTexture, colors,
+                                  static_cast<uint32_t>(top_left_needed_cu_x),
+                                  static_cast<uint32_t>(top_left_needed_cu_y), 4};
+        std::vector<std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> > funcs;
+        std::vector<void *> data;
+        funcs.emplace_back(draw_cu);
+        data.push_back((void *) &params);
+        funcs.emplace_back(drawIntraModes);
+        data.push_back((void *) &params);
+
+        for (int x = top_left_needed_cu_x; x < top_left_needed_cu_x + 64 * 2; x += 64) {
+            for (int y = top_left_needed_cu_y; y < top_left_needed_cu_y + 64 * 2; y += 64) {
+                cu_loc_t cuLoc;
+                uvg_cu_loc_ctor(&cuLoc, x, y, 64, 64);
+                walk_tree(stat_array, &cuLoc, 0, width, height, funcs, data);
+            }
+        }
+        zoomOverlayTexture.display();
+    }
+
+    sf::Texture zoomTexture;
+    zoomTexture.loadFromImage(zoomImage);
+    sf::Sprite zoomSprite(zoomTexture);
+    zoomSprite.setPosition(mousePosition.x / scaleX > width / 2 ? 0 : width * scaleX - 64 * 4, 0);
+    zoomSprite.setScale(4, 4);
+    window.draw(zoomSprite);
+
+
+    sf::Sprite zoomOverlaySprite(zoomOverlayTexture.getTexture());
+    zoomOverlaySprite.setPosition(mousePosition.x / scaleX > width / 2 ? 0 : width * scaleX - 64 * 4, 0);
+    zoomOverlaySprite.setTextureRect(sf::IntRect(
+            (top_right_x_of_zoom_area - top_left_needed_cu_x) * 4,
+            (top_right_y_of_zoom_area - top_left_needed_cu_y) * 4, 64 * 4, 64 * 4));
+    window.draw(zoomOverlaySprite);
+}
+
 
 int main() {
     static const sf::Color colors[4] = {
@@ -281,59 +348,11 @@ int main() {
         }
 
         if (show_zoom) {
-            int top_right_x_of_zoom_area = clamp(static_cast<int>(mousePosition.x / scaleX - 32), 0, width - 64);
-            int top_right_y_of_zoom_area = clamp(static_cast<int>(mousePosition.y / scaleY - 32), 0, height - 64);
-
-            int top_left_needed_cu_x = clamp(floor_div(static_cast<int>(mousePosition.x / scaleX - 32), 64) * 64, 0,
-                                             (width / 64 - 2) * 64);
-            int top_left_needed_cu_y = clamp(floor_div(static_cast<int>(mousePosition.y / scaleY - 32), 64) * 64, 0,
-                                             (height / 64 - 2) * 64);
-
-            if(top_right_x_of_zoom_area != previous_mouse_position.x || top_right_y_of_zoom_area != previous_mouse_position.y) {
-                previous_mouse_position.x = top_right_x_of_zoom_area;
-                previous_mouse_position.y = top_right_y_of_zoom_area;
-                zoomImage.copy(imageTexture.getTexture().copyToImage(), 0, 0,
-                               sf::IntRect(
-                                       top_right_x_of_zoom_area,
-                                       top_right_y_of_zoom_area,
-                                       64, 64));
-                zoomOverlayTexture.clear(sf::Color::Transparent);
-
-                func_parameters params = {zoomOverlayTexture, colors,
-                                          static_cast<uint32_t>(top_left_needed_cu_x),
-                                          static_cast<uint32_t>(top_left_needed_cu_y), 4};
-                std::vector<std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> > funcs;
-                std::vector<void *> data;
-                funcs.emplace_back(draw_cu);
-                data.push_back((void *) &params);
-                funcs.emplace_back(drawIntraModes);
-                data.push_back((void *) &params);
-
-                for (int x = top_left_needed_cu_x; x < top_left_needed_cu_x + 64 * 2; x += 64) {
-                    for (int y = top_left_needed_cu_y; y < top_left_needed_cu_y + 64 * 2; y += 64) {
-                        cu_loc_t cuLoc;
-                        uvg_cu_loc_ctor(&cuLoc, x, y, 64, 64);
-                        walk_tree(stat_array, &cuLoc, 0, width, height, funcs, data);
-                    }
-                }
-                zoomOverlayTexture.display();
-            }
+            drawZoomWindow(colors, imageTexture, width, height, stat_array, zoomOverlayTexture, window,
+                                    previous_mouse_position,
+                                    zoomImage, mousePosition, scaleX, scaleY);
 
 
-            sf::Texture zoomTexture;
-            zoomTexture.loadFromImage(zoomImage);
-            sf::Sprite zoomSprite(zoomTexture);
-            zoomSprite.setPosition(mousePosition.x / scaleX > width / 2 ? 0 : width * scaleX - 64 * 4, 0);
-            zoomSprite.setScale(4, 4);
-            window.draw(zoomSprite);
-
-
-            sf::Sprite zoomOverlaySprite(zoomOverlayTexture.getTexture());
-            zoomOverlaySprite.setPosition(mousePosition.x / scaleX > width / 2 ? 0 : width * scaleX - 64 * 4, 0);
-            zoomOverlaySprite.setTextureRect(sf::IntRect(
-                    (top_right_x_of_zoom_area - top_left_needed_cu_x) * 4,
-                    (top_right_y_of_zoom_area - top_left_needed_cu_y) * 4, 64 * 4, 64 * 4));
-            window.draw(zoomOverlaySprite);
         }
         clock_gettime(CLOCK_REALTIME, &ts);
         uint64_t render_end_time_stamp = ts.tv_sec * 1000000000 + ts.tv_nsec;
