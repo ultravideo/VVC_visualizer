@@ -1,6 +1,7 @@
 #include <fstream>
+#include <iostream>
+#include <cstring>
 
-#include <opencv2/opencv.hpp>
 #include <SFML/Graphics.hpp>
 
 #include "cu.h"

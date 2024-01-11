@@ -170,6 +170,7 @@ void yuv420_to_rgb_i_c(uint8_t* input, uint8_t* output, uint16_t width, uint16_t
         output[i*4] = input[i];
         output[i*4+1] = input[i];
         output[i*4+2] = input[i];
+        output[i*4+3] = 255;
     }
 
     uint32_t u_offset = width*height;
@@ -194,16 +195,16 @@ void yuv420_to_rgb_i_c(uint8_t* input, uint8_t* output, uint16_t width, uint16_t
             int32_t pixel_value = 0;
 
             pixel_value                = output[8*x + row ] + rpixel;
-            output[8*x + row]          = CLAMP_8BIT(pixel_value);
+            output[8*x + row + 2]          = CLAMP_8BIT(pixel_value);
 
             pixel_value                = output[8*x + 4 + row ] + rpixel;
-            output[8*x + 4 + row]      = CLAMP_8BIT(pixel_value);
+            output[8*x + 4 + row + 2]      = CLAMP_8BIT(pixel_value);
 
             pixel_value                = output[8*x +     next_row] + rpixel;
-            output[8*x + next_row]     = CLAMP_8BIT(pixel_value);
+            output[8*x + next_row + 2]     = CLAMP_8BIT(pixel_value);
 
             pixel_value                = output[8*x + 4 + next_row] + rpixel;
-            output[8*x + 4 + next_row] = CLAMP_8BIT(pixel_value);
+            output[8*x + 4 + next_row + 2] = CLAMP_8BIT(pixel_value);
 
             // G
             pixel_value                = output[8*x + row + 1] + gpixel;
@@ -220,16 +221,16 @@ void yuv420_to_rgb_i_c(uint8_t* input, uint8_t* output, uint16_t width, uint16_t
 
             // B
             pixel_value                = output[8*x + row + 2] + bpixel;
-            output[8*x + row + 2]      = CLAMP_8BIT(pixel_value);
+            output[8*x + row + 0]      = CLAMP_8BIT(pixel_value);
 
             pixel_value                = output[8*x + 4 + row + 2] + bpixel;
-            output[8*x + 4 + row + 2]  = CLAMP_8BIT(pixel_value);
+            output[8*x + 4 + row + 0]  = CLAMP_8BIT(pixel_value);
 
             pixel_value                = output[8*x + next_row + 2] + bpixel;
-            output[8*x + next_row + 2] = CLAMP_8BIT(pixel_value);
+            output[8*x + next_row + 0] = CLAMP_8BIT(pixel_value);
 
             pixel_value                    = output[8*x + 4 + next_row + 2] + bpixel;
-            output[8*x + 4 + next_row + 2] = CLAMP_8BIT(pixel_value);
+            output[8*x + 4 + next_row + 0] = CLAMP_8BIT(pixel_value);
         }
     }
 }

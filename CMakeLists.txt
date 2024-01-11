@@ -3,12 +3,7 @@ project(visualizer)
 
 set(CMAKE_CXX_STANDARD 17)
 
-find_package(OpenCV REQUIRED)
-include_directories(${OpenCV_INCLUDE_DIRS})
-
 find_package(SFML 2.5 COMPONENTS system window graphics REQUIRED)
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2")
 
 add_executable(visualizer main.cpp
         cu.cpp)
