@@ -185,8 +185,8 @@ int main() {
             }
             temp_timestamp = current_cu.stats.timestamp;
 
-            for (int y = current_cu.rect.y; y < current_cu.rect.y + current_cu.rect.height - 1; y += 4) {
-                for (int x = current_cu.rect.x; x < current_cu.rect.x + current_cu.rect.width - 1; x += 4) {
+            for (int y = current_cu.rect.top; y < current_cu.rect.top + current_cu.rect.height - 1; y += 4) {
+                for (int x = current_cu.rect.left; x < current_cu.rect.left + current_cu.rect.width - 1; x += 4) {
                     int index = (y / 4) * (width / 4) + (x / 4);
                     memcpy(&stat_array[index], &current_cu.stats, sizeof(current_cu.stats));
                     break;
@@ -195,7 +195,7 @@ int main() {
             }
 
             sf::Image cuImage;
-            cuImage.create(current_cu.stats.width, current_cu.stats.height, current_cu.image.data);
+            cuImage.create(current_cu.stats.width, current_cu.stats.height, current_cu.image);
 
             newImage.copy(cuImage, current_cu.stats.x, current_cu.stats.y);
         }

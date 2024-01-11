@@ -6,7 +6,8 @@
 #define VISUALIZER_CU_H
 
 #include <fstream>
-#include <opencv2/opencv.hpp>
+#include <SFML/Graphics.hpp>
+#include <functional>
 
 struct sub_image_stats {
     uint64_t timestamp;
@@ -29,14 +30,16 @@ struct sub_image_stats {
     uint8_t lfnst;
     uint8_t tr_idx;
 } __attribute__((packed));
+
 struct sub_image {
     sub_image_stats stats;
-    cv::Rect rect;
-    cv::Mat image;
+    sf::Rect<uint32_t> rect;
+    uint8_t image[64* 64 * 4];
 };
 
 sub_image readOneCU(std::ifstream &data_file);
 
+#define MAX(x, y) ((x) > (y) ? (x) : (y))
 #define GET_SPLITDATA(CU, curDepth) ((CU)->split_tree >> ((MAX((curDepth), 0) * 3)) & 7)
 
 enum split_type {
