@@ -13,8 +13,6 @@ if(NOT SFML_FOUND)
 endif()
 link_directories(${SFML_SOURCE_DIR})
 
-
-
 add_executable(visualizer main.cpp
         cu.cpp)
 target_link_libraries(visualizer sfml-system sfml-window sfml-graphics)

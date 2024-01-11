@@ -98,8 +98,7 @@ void drawIntraModes(void *data, const cu_loc_t *const cuLoc, const sub_image_sta
                     sf::Vertex(sf::Vector2f(center.x + 3, center.y - 3), color),
             };
             edgeImage.draw(line2, 2, sf::Lines);
-        }
-        else {
+        } else {
             if (current_cu->mip_transpose) {
                 sf::Vertex line[] = {
                         sf::Vertex(sf::Vector2f(center.x - 3, center.y + 3), color),
@@ -111,8 +110,7 @@ void drawIntraModes(void *data, const cu_loc_t *const cuLoc, const sub_image_sta
                         sf::Vertex(sf::Vector2f(center.x + 3, center.y - 3), color),
                 };
                 edgeImage.draw(line2, 2, sf::Lines);
-            }
-            else {
+            } else {
                 sf::Vertex line[] = {
                         sf::Vertex(sf::Vector2f(center.x - 3, center.y - 3), color),
                         sf::Vertex(sf::Vector2f(center.x - 3, center.y + 3), color),
@@ -127,6 +125,7 @@ void drawIntraModes(void *data, const cu_loc_t *const cuLoc, const sub_image_sta
         }
     }
 }
+
 int main() {
     static const sf::Color colors[4] = {
             sf::Color(245, 24, 245),
@@ -157,6 +156,19 @@ int main() {
         return 1;
     }
 
+    sf::Font font;
+    if (!font.loadFromFile(
+            "/home/jovasa/.local/share/JetBrains/Toolbox/apps/CLion/ch-0/223.8617.54/jbr/lib/fonts/DroidSans.ttf")) {
+        // Error handling: If the font fails to load, exit the program
+        return EXIT_FAILURE;
+    }
+
+    sf::Text text;
+    text.setFont(font);
+    text.setCharacterSize(24);
+    text.setFillColor(sf::Color::Magenta);
+    text.setPosition(20, 20);
+
     // Create a window
     sf::RenderWindow window(sf::VideoMode(width, height), "Moving Line");
 
@@ -169,6 +181,7 @@ int main() {
     bool show_grid = true;
     bool show_intra = true;
     bool show_zoom = true;
+    bool show_debug = false;
     float previous_scale = 1;
     while (running) {
         if (data_file.eof() || !data_file.good()) {
@@ -176,6 +189,10 @@ int main() {
         }
         // Read one CU from the data file
         uint64_t temp_timestamp = current_cu.stats.timestamp;
+
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        uint64_t render_start_timestamp = ts.tv_sec * 1000000000 + ts.tv_nsec;
 
         sf::Image newImage;
         newImage.create(width, height, sf::Color::Transparent);
@@ -201,6 +218,8 @@ int main() {
             newImage.copy(cuImage, current_cu.stats.x, current_cu.stats.y);
         }
 
+        clock_gettime(CLOCK_REALTIME, &ts);
+        uint64_t data_process_end_timestamp = ts.tv_sec * 1000000000 + ts.tv_nsec;
 
         sf::Texture newTexture;
         newTexture.loadFromImage(newImage);
@@ -305,7 +324,16 @@ int main() {
                     (top_right_y_of_zoom_area - top_left_needed_cu_y) * 4, 64 * 4, 64 * 4));
             window.draw(zoomOverlaySprite);
         }
-
+        clock_gettime(CLOCK_REALTIME, &ts);
+        uint64_t render_end_time_stamp = ts.tv_sec * 1000000000 + ts.tv_nsec;
+        if (show_debug) {
+            std::string text_string =
+                    std::to_string((data_process_end_timestamp - render_start_timestamp) / 1000000) + " ms\n";
+            text_string += std::to_string((render_end_time_stamp - data_process_end_timestamp) / 1000000) + " ms\n";
+            text_string += std::to_string((render_end_time_stamp - render_start_timestamp) / 1000000) + " ms\n";
+            text.setString(text_string);
+            window.draw(text);
+        }
         window.display();
 
         // Toggle fullscreen on 'f' key press
