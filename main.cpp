@@ -158,7 +158,7 @@ int main() {
 
     sf::Font font;
     if (!font.loadFromFile(
-            "/home/jovasa/.local/share/JetBrains/Toolbox/apps/CLion/ch-0/223.8617.54/jbr/lib/fonts/DroidSans.ttf")) {
+            "Ubuntu-M.ttf")) {
         // Error handling: If the font fails to load, exit the program
         return EXIT_FAILURE;
     }
@@ -366,6 +366,9 @@ int main() {
                 }
                 if (event.key.code == sf::Keyboard::I) {
                     show_intra = !show_intra;
+                }
+                if (event.key.code == sf::Keyboard::D) {
+                    show_debug = !show_debug;
                 }
             }
         }
