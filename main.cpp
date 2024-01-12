@@ -158,27 +158,28 @@ void drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imag
                                top_right_x_of_zoom_area,
                                top_right_y_of_zoom_area,
                                64, 64));
-        zoomOverlayTexture.clear(sf::Color::Transparent);
 
-        func_parameters params = {zoomOverlayTexture, colors,
-                                  static_cast<uint32_t>(top_left_needed_cu_x),
-                                  static_cast<uint32_t>(top_left_needed_cu_y), 4};
-        std::vector<std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> > funcs;
-        std::vector<void *> data;
-        funcs.emplace_back(draw_cu);
-        data.push_back((void *) &params);
-        funcs.emplace_back(drawIntraModes);
-        data.push_back((void *) &params);
-
-        for (int x = top_left_needed_cu_x; x < top_left_needed_cu_x + 64 * 2; x += 64) {
-            for (int y = top_left_needed_cu_y; y < top_left_needed_cu_y + 64 * 2; y += 64) {
-                cu_loc_t cuLoc;
-                uvg_cu_loc_ctor(&cuLoc, x, y, 64, 64);
-                walk_tree(stat_array, &cuLoc, 0, width, height, funcs, data);
-            }
-        }
-        zoomOverlayTexture.display();
     }
+    zoomOverlayTexture.clear(sf::Color::Transparent);
+
+    func_parameters params = { zoomOverlayTexture, colors,
+                              static_cast<uint32_t>(top_left_needed_cu_x),
+                              static_cast<uint32_t>(top_left_needed_cu_y), 4 };
+    std::vector<std::function<void(void*, const cu_loc_t* const, const sub_image_stats* const)> > funcs;
+    std::vector<void*> data;
+    funcs.emplace_back(draw_cu);
+    data.push_back((void*)&params);
+    funcs.emplace_back(drawIntraModes);
+    data.push_back((void*)&params);
+
+    for (int x = top_left_needed_cu_x; x < top_left_needed_cu_x + 64 * 2; x += 64) {
+      for (int y = top_left_needed_cu_y; y < top_left_needed_cu_y + 64 * 2; y += 64) {
+        cu_loc_t cuLoc;
+        uvg_cu_loc_ctor(&cuLoc, x, y, 64, 64);
+        walk_tree(stat_array, &cuLoc, 0, width, height, funcs, data);
+      }
+    }
+    zoomOverlayTexture.display();
 
     sf::Texture zoomTexture;
     zoomTexture.loadFromImage(zoomImage);
