@@ -12,6 +12,10 @@
 
 #include "math.h"
 
+#ifdef _MSC_VER
+#include <Windows.h>
+#endif
+
 struct func_parameters {
     sf::RenderTexture &edgeImage;
     const sf::Color *const colors;
@@ -195,7 +199,7 @@ void drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imag
 
 void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeRenderTexture,
                    const sub_image_stats *stat_array, sf::RenderWindow &window, bool show_grid, bool show_intra,
-                   float &previous_scale, const sf::Color *&colors, const float scaleX) {
+                   float &previous_scale, const sf::Color* const colors, const float scaleX) {
     if (!show_grid && !show_intra) {
         return;
     }
@@ -279,6 +283,11 @@ int main() {
     sf::Image zoomImage;
     zoomImage.create(64, 64, sf::Color::Transparent);
 
+#ifdef _MSC_VER
+    LARGE_INTEGER Frequency;
+    QueryPerformanceFrequency(&Frequency);
+#endif
+
     uint64_t timestamp = 0;
     // Draw and display the line in each frame
     sub_image current_cu;
@@ -296,10 +305,16 @@ int main() {
         }
         // Read one CU from the data file
         uint64_t temp_timestamp = current_cu.stats.timestamp;
-
+#ifdef _MSC_VER
+        LARGE_INTEGER StartingTime;
+        QueryPerformanceCounter(&StartingTime);
+      
+        uint64_t render_start_timestamp = StartingTime.QuadPart * 1000000000 / Frequency.QuadPart;
+#else
         struct timespec ts;
         clock_gettime(CLOCK_REALTIME, &ts);
         uint64_t render_start_timestamp = ts.tv_sec * 1000000000 + ts.tv_nsec;
+#endif
 
         sf::Image newImage;
         newImage.create(width, height, sf::Color::Transparent);
@@ -324,9 +339,14 @@ int main() {
 
             newImage.copy(cuImage, current_cu.stats.x, current_cu.stats.y);
         }
+#ifdef _MSC_VER
+        QueryPerformanceCounter(&StartingTime);
 
+        uint64_t data_process_end_timestamp = StartingTime.QuadPart * 1000000000 / Frequency.QuadPart;
+#else
         clock_gettime(CLOCK_REALTIME, &ts);
         uint64_t data_process_end_timestamp = ts.tv_sec * 1000000000 + ts.tv_nsec;
+#endif
 
         sf::Texture newTexture;
         newTexture.loadFromImage(newImage);
@@ -354,7 +374,7 @@ int main() {
 
         window.draw(sprite);
         visualizeInfo(width, height, cuEdgeRenderTexture, stat_array, window, show_grid, show_intra, previous_scale,
-                      (const sf::Color *&) colors, scaleX);
+                       colors, scaleX);
 
         if (show_zoom) {
             drawZoomWindow(colors, imageTexture, width, height, stat_array, zoomOverlayTexture, window,
@@ -363,8 +383,14 @@ int main() {
 
 
         }
+#ifdef _MSC_VER
+        QueryPerformanceCounter(&StartingTime);
+
+        uint64_t render_end_time_stamp = StartingTime.QuadPart * 1000000000 / Frequency.QuadPart;
+#else
         clock_gettime(CLOCK_REALTIME, &ts);
         uint64_t render_end_time_stamp = ts.tv_sec * 1000000000 + ts.tv_nsec;
+#endif
         if (show_debug) {
             std::string text_string =
                     std::to_string((data_process_end_timestamp - render_start_timestamp) / 1000000) + " ms\n";
