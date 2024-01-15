@@ -15,5 +15,8 @@ if(NOT SFML_FOUND)
 endif()
 link_directories(${SFML_SOURCE_DIR})
 
-add_executable(visualizer main.cpp cu.cpp)
+add_executable(visualizer main.cpp cu.cpp
+        config.h
+        eventHandler.cpp
+        eventHandler.h)
 target_link_libraries(visualizer sfml-system sfml-window sfml-graphics zmq)

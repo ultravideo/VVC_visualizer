@@ -12,6 +12,8 @@
 #define _USE_MATH_DEFINES
 
 #include "math.h"
+#include "config.h"
+#include "eventHandler.h"
 
 #ifdef _MSC_VER
 #include <Windows.h>
@@ -200,9 +202,9 @@ void drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imag
 
 
 void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeRenderTexture,
-                   const sub_image_stats *stat_array, sf::RenderWindow &window, bool show_grid, bool show_intra,
+                   const sub_image_stats *stat_array, sf::RenderWindow &window, const config &cfg,
                    float &previous_scale, const sf::Color* const colors, const float scaleX) {
-    if (!show_grid && !show_intra) {
+    if (!cfg.show_grid && !cfg.show_intra) {
         return;
     }
 
@@ -213,11 +215,11 @@ void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeR
     std::vector<std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> > funcs;
     std::vector<void *> data;
     func_parameters params = {cuEdgeRenderTexture, colors, 0, 0, scaleX};
-    if (show_grid) {
+    if (cfg.show_grid) {
         funcs.emplace_back(draw_cu);
         data.push_back((void *) &params);
     }
-    if (show_intra) {
+    if (cfg.show_intra) {
         funcs.emplace_back(drawIntraModes);
         data.push_back((void *) &params);
     }
@@ -232,6 +234,51 @@ void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeR
     cuEdgeRenderTexture.display();
     sf::Sprite grid_sprite = sf::Sprite(cuEdgeRenderTexture.getTexture());
     window.draw(grid_sprite);
+}
+
+void handleEvents(const int width, const int height, void *control_socket, sf::RenderWindow &window, config &cfg) {
+    sf::Event event;
+    while (window.pollEvent(event)) {
+        if (event.type == sf::Event::Closed) {
+            window.close();
+            cfg.running = false;
+            break;
+        }
+        if (event.type == sf::Event::KeyPressed) {
+            if (event.key.code == sf::Keyboard::F) {
+                if (cfg.fullscreen) {
+                    window.create(sf::VideoMode(width, height), "VVC Visualizer", sf::Style::Default);
+                } else {
+                    window.create(sf::VideoMode(2560, 1440), "VVC Visualizer", sf::Style::Fullscreen);
+                }
+                cfg.fullscreen = !cfg.fullscreen;
+            }
+            if (event.key.code == sf::Keyboard::Escape) {
+                window.close();
+                cfg.running = false;
+                break;
+            }
+            if (event.key.code == sf::Keyboard::G) {
+                cfg.show_grid = !cfg.show_grid;
+            }
+            if (event.key.code == sf::Keyboard::Z) {
+                cfg.show_zoom = !cfg.show_zoom;
+            }
+            if (event.key.code == sf::Keyboard::I) {
+                cfg.show_intra = !cfg.show_intra;
+            }
+            if (event.key.code == sf::Keyboard::D) {
+                cfg.show_debug = !cfg.show_debug;
+            }
+            if (event.key.code == sf::Keyboard::H) {
+                cfg.show_help = !cfg.show_help;
+            }
+            if(event.key.code == sf::Keyboard::S) {
+                char msg[] = "S";
+                zmq_send(control_socket, msg, 1, 0);
+            }
+        }
+    }
 }
 
 int main() {
@@ -293,11 +340,27 @@ int main() {
         return EXIT_FAILURE;
     }
 
-    sf::Text text;
-    text.setFont(font);
-    text.setCharacterSize(24);
-    text.setFillColor(sf::Color::Magenta);
-    text.setPosition(20, 20);
+    sf::Text debugText;
+    debugText.setFont(font);
+    debugText.setCharacterSize(24);
+    debugText.setFillColor(sf::Color::Magenta);
+    debugText.setPosition(20, 20);
+
+    sf::Text helpText;
+    helpText.setFont(font);
+    helpText.setCharacterSize(24);
+    helpText.setFillColor(sf::Color::White);
+    helpText.setOutlineColor(sf::Color::Black);
+    helpText.setOutlineThickness(2);
+    helpText.setPosition(20, 20);
+    helpText.setString("F: Toggle fullscreen\n"
+                       "G: Toggle grid\n"
+                       "Z: Toggle zoom\n"
+                       "I: Toggle intra modes\n"
+                       "D: Toggle debug\n"
+                       "H: Toggle help (this)\n"
+                       "ESC: Exit\n\n"
+                       "Press any key");
 
     // Create a window
     sf::RenderWindow window(sf::VideoMode(width, height), "VVC Visualizer");
@@ -307,38 +370,25 @@ int main() {
     sf::Image zoomImage;
     zoomImage.create(64, 64, sf::Color::Transparent);
 
-#ifdef _MSC_VER
-    LARGE_INTEGER Frequency;
-    QueryPerformanceFrequency(&Frequency);
-#endif
+    TimeStamp ts;
+
+    EventHandler eventHandler(width, height, control_socket);
 
     int64_t timestamp = 0;
     // Draw and display the line in each frame
     sub_image current_cu;
     current_cu.stats.timestamp = 0;
-    bool fullscreen = false;
-    bool running = true;
-    bool show_grid = true;
-    bool show_intra = true;
-    bool show_zoom = false;
-    bool show_debug = false;
+    config cfg;
     float previous_scale = 1;
-    while (running) {
+    while (cfg.running) {
         if (data_file.eof() || !data_file.good()) {
             break;
         }
         // Read one CU from the data file
         int64_t temp_timestamp = current_cu.stats.timestamp;
-#ifdef _MSC_VER
-        LARGE_INTEGER StartingTime;
-        QueryPerformanceCounter(&StartingTime);
-      
-        uint64_t render_start_timestamp = StartingTime.QuadPart * 1000000000 / Frequency.QuadPart;
-#else
-        struct timespec ts;
-        clock_gettime(CLOCK_REALTIME, &ts);
-        uint64_t render_start_timestamp = ts.tv_sec * 1000000000 + ts.tv_nsec;
-#endif
+
+        uint64_t render_start_timestamp;
+        GET_TIME(ts, render_start_timestamp);
 
         sf::Image newImage;
         newImage.create(width, height, sf::Color::Transparent);
@@ -364,14 +414,9 @@ int main() {
 
             newImage.copy(cuImage, current_cu.stats.x, current_cu.stats.y);
         }
-#ifdef _MSC_VER
-        QueryPerformanceCounter(&StartingTime);
 
-        uint64_t data_process_end_timestamp = StartingTime.QuadPart * 1000000000 / Frequency.QuadPart;
-#else
-        clock_gettime(CLOCK_REALTIME, &ts);
-        uint64_t data_process_end_timestamp = ts.tv_sec * 1000000000 + ts.tv_nsec;
-#endif
+        uint64_t data_process_end_timestamp;
+        GET_TIME(ts, data_process_end_timestamp);
 
         sf::Texture newTexture;
         newTexture.loadFromImage(newImage);
@@ -386,8 +431,8 @@ int main() {
         sf::Vector2u windowSize = window.getSize();
 
         // Calculate the scale factors for the sprite
-        float scaleX = fullscreen ? 2 : sqrt(static_cast<float>(windowSize.x) / imageTexture.getSize().x);
-        float scaleY = fullscreen ? 2 : sqrt(static_cast<float>(windowSize.y) / imageTexture.getSize().y);
+        float scaleX = cfg.fullscreen ? 2 : sqrt(static_cast<float>(windowSize.x) / imageTexture.getSize().x);
+        float scaleY = cfg.fullscreen ? 2 : sqrt(static_cast<float>(windowSize.y) / imageTexture.getSize().y);
 
 
         // Display the frame
@@ -398,69 +443,39 @@ int main() {
         sprite.setScale(scaleX, scaleY);
 
         window.draw(sprite);
-        visualizeInfo(width, height, cuEdgeRenderTexture, stat_array, window, show_grid, show_intra, previous_scale,
+        visualizeInfo(width, height, cuEdgeRenderTexture, stat_array, window, cfg, previous_scale,
                        colors, scaleX);
 
-        if (show_zoom) {
+        if (cfg.show_zoom) {
             drawZoomWindow(colors, imageTexture, width, height, stat_array, zoomOverlayTexture, window,
                                     previous_mouse_position,
                                     zoomImage, mousePosition, scaleX, scaleY);
 
 
         }
-#ifdef _MSC_VER
-        QueryPerformanceCounter(&StartingTime);
 
-        uint64_t render_end_time_stamp = StartingTime.QuadPart * 1000000000 / Frequency.QuadPart;
-#else
-        clock_gettime(CLOCK_REALTIME, &ts);
-        uint64_t render_end_time_stamp = ts.tv_sec * 1000000000 + ts.tv_nsec;
-#endif
-        if (show_debug) {
+        uint64_t render_end_time_stamp;
+        GET_TIME(ts, render_end_time_stamp);
+
+        if (cfg.show_debug) {
             std::string text_string =
                     std::to_string((data_process_end_timestamp - render_start_timestamp) / 1000000) + " ms\n";
             text_string += std::to_string((render_end_time_stamp - data_process_end_timestamp) / 1000000) + " ms\n";
             text_string += std::to_string((render_end_time_stamp - render_start_timestamp) / 1000000) + " ms\n";
-            text.setString(text_string);
-            window.draw(text);
+            debugText.setString(text_string);
+            window.draw(debugText);
+        }
+
+        if (cfg.show_help) {
+            window.draw(helpText);
         }
         window.display();
 
         // Toggle fullscreen on 'f' key press
+
         sf::Event event;
         while (window.pollEvent(event)) {
-            if (event.type == sf::Event::Closed) {
-                window.close();
-                running = false;
-                break;
-            }
-            if (event.type == sf::Event::KeyPressed) {
-                if (event.key.code == sf::Keyboard::F) {
-                    if (fullscreen) {
-                        window.create(sf::VideoMode(width, height), "VVC Visualizer", sf::Style::Default);
-                    } else {
-                        window.create(sf::VideoMode(2560, 1440), "VVC Visualizer", sf::Style::Fullscreen);
-                    }
-                    fullscreen = !fullscreen;
-                }
-                if (event.key.code == sf::Keyboard::Escape) {
-                    window.close();
-                    running = false;
-                    break;
-                }
-                if (event.key.code == sf::Keyboard::G) {
-                    show_grid = !show_grid;
-                }
-                if (event.key.code == sf::Keyboard::Z) {
-                    show_zoom = !show_zoom;
-                }
-                if (event.key.code == sf::Keyboard::I) {
-                    show_intra = !show_intra;
-                }
-                if (event.key.code == sf::Keyboard::D) {
-                    show_debug = !show_debug;
-                }
-            }
+            eventHandler.handle(event, cfg, window);
         }
     }
 
