@@ -36,6 +36,8 @@ public:
     EventHandler &operator=(const EventHandler &) = delete;
 
     void handle(sf::Event &event, config &conf, sf::RenderWindow &window);
+
+    void toggleFullscreen(config &cfg, sf::RenderWindow &window) const;
 };
 
 

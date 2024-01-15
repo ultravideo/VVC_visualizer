@@ -236,50 +236,6 @@ void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeR
     window.draw(grid_sprite);
 }
 
-void handleEvents(const int width, const int height, void *control_socket, sf::RenderWindow &window, config &cfg) {
-    sf::Event event;
-    while (window.pollEvent(event)) {
-        if (event.type == sf::Event::Closed) {
-            window.close();
-            cfg.running = false;
-            break;
-        }
-        if (event.type == sf::Event::KeyPressed) {
-            if (event.key.code == sf::Keyboard::F) {
-                if (cfg.fullscreen) {
-                    window.create(sf::VideoMode(width, height), "VVC Visualizer", sf::Style::Default);
-                } else {
-                    window.create(sf::VideoMode(2560, 1440), "VVC Visualizer", sf::Style::Fullscreen);
-                }
-                cfg.fullscreen = !cfg.fullscreen;
-            }
-            if (event.key.code == sf::Keyboard::Escape) {
-                window.close();
-                cfg.running = false;
-                break;
-            }
-            if (event.key.code == sf::Keyboard::G) {
-                cfg.show_grid = !cfg.show_grid;
-            }
-            if (event.key.code == sf::Keyboard::Z) {
-                cfg.show_zoom = !cfg.show_zoom;
-            }
-            if (event.key.code == sf::Keyboard::I) {
-                cfg.show_intra = !cfg.show_intra;
-            }
-            if (event.key.code == sf::Keyboard::D) {
-                cfg.show_debug = !cfg.show_debug;
-            }
-            if (event.key.code == sf::Keyboard::H) {
-                cfg.show_help = !cfg.show_help;
-            }
-            if(event.key.code == sf::Keyboard::S) {
-                char msg[] = "S";
-                zmq_send(control_socket, msg, 1, 0);
-            }
-        }
-    }
-}
 
 int main() {
     static const sf::Color colors[4] = {

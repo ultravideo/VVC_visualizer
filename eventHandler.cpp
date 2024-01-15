@@ -16,12 +16,7 @@ void EventHandler::handle(sf::Event &event, config &cfg, sf::RenderWindow &windo
 
     if (event.type == sf::Event::KeyPressed) {
         if (event.key.code == sf::Keyboard::F) {
-            if (cfg.fullscreen) {
-                window.create(sf::VideoMode(width, height), "VVC Visualizer", sf::Style::Default);
-            } else {
-                window.create(sf::VideoMode(2560, 1440), "VVC Visualizer", sf::Style::Fullscreen);
-            }
-            cfg.fullscreen = !cfg.fullscreen;
+            toggleFullscreen(cfg, window);
         }
         if (event.key.code == sf::Keyboard::Escape) {
             window.close();
@@ -75,12 +70,7 @@ void EventHandler::handle(sf::Event &event, config &cfg, sf::RenderWindow &windo
         GET_TIME(ts, now);
         if (event.mouseButton.button == sf::Mouse::Left) {
             if (now - last_click < 400'000'000) {
-                if (cfg.fullscreen) {
-                    window.create(sf::VideoMode(width, height), "VVC Visualizer", sf::Style::Default);
-                } else {
-                    window.create(sf::VideoMode(2560, 1440), "VVC Visualizer", sf::Style::Fullscreen);
-                }
-                cfg.fullscreen = !cfg.fullscreen;
+                toggleFullscreen(cfg, window);
             }
             last_click = now;
         }
@@ -90,4 +80,13 @@ void EventHandler::handle(sf::Event &event, config &cfg, sf::RenderWindow &windo
             last_click2 = now;
         }
     }
+}
+
+void EventHandler::toggleFullscreen(config &cfg, sf::RenderWindow &window) const {
+    if (cfg.fullscreen) {
+        window.create(sf::VideoMode(width, height), "VVC Visualizer", sf::Style::Default);
+    } else {
+        window.create(sf::VideoMode(2560, 1440), "VVC Visualizer", sf::Style::Fullscreen);
+    }
+    cfg.fullscreen = !cfg.fullscreen;
 }
