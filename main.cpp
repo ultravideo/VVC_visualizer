@@ -256,7 +256,7 @@ int main() {
     void *control_socket = zmq_socket(context, ZMQ_PUB);
     int rc = zmq_bind(control_socket, "tcp://*:5555");
     for (int i = 0; i < 10; i++) {
-        sleep(1);
+        // sleep(1);
         // zmq_send(control_socket, "A", 1, ZMQ_SNDMORE);
         zmq_send(control_socket, "Hello", 5, 0);
     }
@@ -312,7 +312,7 @@ int main() {
     QueryPerformanceFrequency(&Frequency);
 #endif
 
-    uint64_t timestamp = 0;
+    int64_t timestamp = 0;
     // Draw and display the line in each frame
     sub_image current_cu;
     current_cu.stats.timestamp = 0;
@@ -320,7 +320,7 @@ int main() {
     bool running = true;
     bool show_grid = true;
     bool show_intra = true;
-    bool show_zoom = true;
+    bool show_zoom = false;
     bool show_debug = false;
     float previous_scale = 1;
     while (running) {
@@ -328,7 +328,7 @@ int main() {
             break;
         }
         // Read one CU from the data file
-        uint64_t temp_timestamp = current_cu.stats.timestamp;
+        int64_t temp_timestamp = current_cu.stats.timestamp;
 #ifdef _MSC_VER
         LARGE_INTEGER StartingTime;
         QueryPerformanceCounter(&StartingTime);
@@ -342,7 +342,7 @@ int main() {
 
         sf::Image newImage;
         newImage.create(width, height, sf::Color::Transparent);
-        while (current_cu.stats.timestamp - timestamp < 33'000'000) {
+        while ((current_cu.stats.timestamp - 33'000'000) - timestamp < 33'000'000) {
             current_cu = readOneCU(receiver);
             if (data_file.eof() || !data_file.good() || current_cu.stats.width == 0 || current_cu.stats.height == 0) {
                 break;
@@ -465,6 +465,7 @@ int main() {
     }
 
     zmq_close(control_socket);
+    zmq_close(receiver);
     zmq_ctx_destroy(context);
 
     // Close the window after the loop

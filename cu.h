@@ -13,7 +13,7 @@
 #pragma pack(push, 1)
 #endif
 struct sub_image_stats {
-    uint64_t timestamp;
+    int64_t timestamp;
     uint8_t frame_num;
     uint16_t x;
     uint16_t y;
