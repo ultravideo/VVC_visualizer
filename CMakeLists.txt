@@ -3,6 +3,8 @@ project(visualizer)
 
 set(CMAKE_CXX_STANDARD 17)
 
+find_package(ZeroMQ REQUIRED)
+
 find_package(SFML 2.5 COMPONENTS system window graphics QUIET)
 if(NOT SFML_FOUND)
     include(FetchContent)
@@ -13,6 +15,5 @@ if(NOT SFML_FOUND)
 endif()
 link_directories(${SFML_SOURCE_DIR})
 
-add_executable(visualizer main.cpp
-        cu.cpp)
-target_link_libraries(visualizer sfml-system sfml-window sfml-graphics)
+add_executable(visualizer main.cpp cu.cpp)
+target_link_libraries(visualizer sfml-system sfml-window sfml-graphics zmq)

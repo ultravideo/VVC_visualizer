@@ -2,6 +2,7 @@
 #include <iostream>
 #include <cstring>
 
+#include <zmq.h>
 #include <SFML/Graphics.hpp>
 #include <cstdint>
 
@@ -251,6 +252,28 @@ int main() {
     sf::RenderTexture cuEdgeRenderTexture;
     cuEdgeRenderTexture.create(width, height);
 
+    void*context = zmq_ctx_new();
+    void *control_socket = zmq_socket(context, ZMQ_PUB);
+    int rc = zmq_bind(control_socket, "tcp://*:5555");
+    for (int i = 0; i < 10; i++) {
+        sleep(1);
+        // zmq_send(control_socket, "A", 1, ZMQ_SNDMORE);
+        zmq_send(control_socket, "Hello", 5, 0);
+    }
+
+    void *receiver = zmq_socket(context, ZMQ_SUB);
+    rc = zmq_bind(receiver, "tcp://*:5556");
+    if(rc != 0) {
+        std::cout << "Error binding to port 5556" << std::endl;
+        return 1;
+    }
+    rc = zmq_setsockopt(receiver, ZMQ_SUBSCRIBE, "", 0);
+    if(rc != 0) {
+        std::cout << "Error setting socket options" << std::endl;
+        return 1;
+    }
+    // zmq_recv(receiver, NULL, 0, 0);
+
     sub_image_stats *stat_array = new sub_image_stats[(width / 4) * (height / 4)];
 
     sf::RenderTexture zoomOverlayTexture;
@@ -320,11 +343,12 @@ int main() {
         sf::Image newImage;
         newImage.create(width, height, sf::Color::Transparent);
         while (current_cu.stats.timestamp - timestamp < 33'000'000) {
-            current_cu = readOneCU(data_file);
+            current_cu = readOneCU(receiver);
             if (data_file.eof() || !data_file.good() || current_cu.stats.width == 0 || current_cu.stats.height == 0) {
                 break;
             }
             temp_timestamp = current_cu.stats.timestamp;
+            // zmq_recv(receiver, &temp_timestamp, 8, 0);
 
             for (int y = current_cu.rect.top; y < current_cu.rect.top + current_cu.rect.height - 1; y += 4) {
                 for (int x = current_cu.rect.left; x < current_cu.rect.left + current_cu.rect.width - 1; x += 4) {
@@ -439,6 +463,9 @@ int main() {
             }
         }
     }
+
+    zmq_close(control_socket);
+    zmq_ctx_destroy(context);
 
     // Close the window after the loop
     window.close();

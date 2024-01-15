@@ -2,6 +2,8 @@
 // Created by jovasa on 9.1.2024.
 //
 
+#include <zmq.h>
+#include <cstring>
 #include "cu.h"
 
 // Return the next aligned address for *p. Result is at most alignment larger than p.
@@ -255,6 +257,22 @@ sub_image readOneCU(std::ifstream &data_file) {
     data_file.read(reinterpret_cast<char *>(yuv420), cu.stats.width * cu.stats.height * 3 / 2);
     yuv420_to_rgb_i_c(yuv420, cu.image, cu.stats.width, cu.stats.height);
     delete[] yuv420;
+    return cu;
+}
+
+sub_image readOneCU(void *data_file) {
+    uint8_t temp_buffer[8192];
+    sub_image cu;
+    int rc = zmq_recv(data_file, temp_buffer, 8192, 0);
+    if (rc == -1) {
+        cu.stats.width = 0;
+        cu.stats.height = 0;
+        return cu;
+    }
+    memcpy(&cu.stats, temp_buffer + 1, sizeof(cu.stats));
+
+    cu.rect = sf::Rect<uint32_t>(cu.stats.x, cu.stats.y, cu.stats.width, cu.stats.height);
+    yuv420_to_rgb_i_c(temp_buffer + 1 + sizeof(cu.stats), cu.image, cu.stats.width, cu.stats.height);
     return cu;
 }
 
