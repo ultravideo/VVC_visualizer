@@ -38,8 +38,40 @@ void EventHandler::handle(sf::Event &event, config &cfg, sf::RenderWindow &windo
             cfg.show_help = !cfg.show_help;
         }
         if(event.key.code == sf::Keyboard::S) {
-            char msg[] = "S";
+            char *msg = const_cast<char *>(shift_pressed ? "s" : "S");
             zmq_send(control_socket, msg, 1, 0);
+        }
+        if(event.key.code == sf::Keyboard::M) {
+            char *msg = const_cast<char *>(shift_pressed ? "m" : "M");
+            zmq_send(control_socket, msg, 1, 0);
+        }
+        if(event.key.code == sf::Keyboard::P) {
+            char *msg = const_cast<char *>(shift_pressed ? "p" : "P");
+            zmq_send(control_socket, msg, 1, 0);
+        }
+        if(event.key.code == sf::Keyboard::T) {
+            char *msg = const_cast<char *>(shift_pressed ? "t" : "T");
+            zmq_send(control_socket, msg, 1, 0);
+        }
+        if(event.key.code == sf::Keyboard::L) {
+            char *msg = const_cast<char *>(shift_pressed ? "l" : "L");
+            zmq_send(control_socket, msg, 1, 0);
+        }
+        if(event.key.code == sf::Keyboard::Num0 || event.key.code == sf::Keyboard::Numpad0) {
+            char *msg = const_cast<char *>(ctrl_pressed ? "C0" : "0");
+            zmq_send(control_socket, msg, 2, 0);
+        }
+        if(event.key.code == sf::Keyboard::Num1 || event.key.code == sf::Keyboard::Numpad1) {
+            char *msg = const_cast<char *>(ctrl_pressed ? "C1" : "1");
+            zmq_send(control_socket, msg, 2, 0);
+        }
+        if(event.key.code == sf::Keyboard::Num3 || event.key.code == sf::Keyboard::Numpad3) {
+            char *msg = const_cast<char *>(ctrl_pressed ? "C2" : "2");
+            zmq_send(control_socket, msg, 2, 0);
+        }
+        if(event.key.code == sf::Keyboard::Num3 || event.key.code == sf::Keyboard::Numpad3) {
+            char *msg = const_cast<char *>(ctrl_pressed ? "C3" : "3");
+            zmq_send(control_socket, msg, 2, 0);
         }
         if(event.key.code == sf::Keyboard::LControl || event.key.code == sf::Keyboard::RControl) {
             ctrl_pressed = true;

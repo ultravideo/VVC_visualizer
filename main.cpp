@@ -310,13 +310,19 @@ int main() {
     helpText.setOutlineThickness(2);
     helpText.setPosition(20, 20);
     helpText.setString("F: Toggle fullscreen\n"
-                       "G: Toggle grid\n"
-                       "Z: Toggle zoom\n"
-                       "I: Toggle intra modes\n"
-                       "D: Toggle debug\n"
                        "H: Toggle help (this)\n"
-                       "ESC: Exit\n\n"
-                       "Press any key");
+                       "G: Toggle cu grid\n"
+                       "I: Toggle intra modes\n"
+                       "Z: Toggle zoom window\n"
+                       "(Shift)+S: Toggle MRL\n"
+                       "(Shift)+M: Toggle MIP\n"
+                       "(Shift)+P: Toggle ISP\n"
+                       "(Shift)+T: Toggle MTS\n"
+                       "(Shift)+L: Toggle LFNST\n"
+                       "CTRL+0-3: Toggle MTT depth\n"
+                       "1-8: Toggle encoding speed\n"
+                       "D: Toggle debug\n"
+                       "ESC: Exit\n");
 
     // Create a window
     sf::RenderWindow window(sf::VideoMode(width, height), "VVC Visualizer");
