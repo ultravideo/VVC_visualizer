@@ -18,5 +18,7 @@ link_directories(${SFML_SOURCE_DIR})
 add_executable(visualizer main.cpp cu.cpp
         config.h
         eventHandler.cpp
-        eventHandler.h)
+        eventHandler.h
+        RenderBufferManager.cpp
+        RenderBufferManager.h)
 target_link_libraries(visualizer sfml-system sfml-window sfml-graphics zmq)
