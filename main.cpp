@@ -144,7 +144,7 @@ void drawTransforms(void *data, const cu_loc_t *const cuLoc, const sub_image_sta
     func_parameters *params = (func_parameters *) data;
     sf::RenderTexture &edgeImage = params->edgeImage;
 
-    if(cuLoc->width * params->scale < 8 || cuLoc->height * params->scale < 8) {
+    if (cuLoc->width * params->scale < 8 || cuLoc->height * params->scale < 8) {
         return;
     }
 
@@ -157,7 +157,7 @@ void drawTransforms(void *data, const cu_loc_t *const cuLoc, const sub_image_sta
             (cuLoc->y + cuLoc->height / 2 - params->top_left_y) * params->scale);
 
     sf::Color color = sf::Color::Red;
-    if(current_cu->tr_idx == 2) {
+    if (current_cu->tr_idx == 2) {
         const sf::Vector2f bottom_right = sf::Vector2f(
                 (cuLoc->x + cuLoc->width - params->top_left_x) * params->scale - 2,
                 (cuLoc->y + cuLoc->height - params->top_left_y) * params->scale - 2);
@@ -166,11 +166,10 @@ void drawTransforms(void *data, const cu_loc_t *const cuLoc, const sub_image_sta
                 sf::Vertex(sf::Vector2f(bottom_right.x, bottom_right.y), color),
                 sf::Vertex(sf::Vector2f(bottom_right.x, center.y), color),
                 sf::Vertex(sf::Vector2f(bottom_right.x, bottom_right.y), color),
-                };
+        };
         edgeImage.draw(line, 4, sf::Lines);
-    }
-    else if (current_cu->tr_idx == 3) {
-        const sf::Vector2f  top_right = sf::Vector2f(
+    } else if (current_cu->tr_idx == 3) {
+        const sf::Vector2f top_right = sf::Vector2f(
                 (cuLoc->x + cuLoc->width - params->top_left_x) * params->scale - 2,
                 (cuLoc->y - params->top_left_y) * params->scale + 2);
         sf::Vertex line[] = {
@@ -180,9 +179,8 @@ void drawTransforms(void *data, const cu_loc_t *const cuLoc, const sub_image_sta
                 sf::Vertex(sf::Vector2f(top_right.x, top_right.y), color),
         };
         edgeImage.draw(line, 4, sf::Lines);
-    }
-    else if(current_cu->tr_idx == 4) {
-        const sf:: Vector2f bottom_left = sf::Vector2f(
+    } else if (current_cu->tr_idx == 4) {
+        const sf::Vector2f bottom_left = sf::Vector2f(
                 (cuLoc->x - params->top_left_x) * params->scale + 2,
                 (cuLoc->y + cuLoc->height - params->top_left_y) * params->scale - 2);
         sf::Vertex line[] = {
@@ -192,9 +190,8 @@ void drawTransforms(void *data, const cu_loc_t *const cuLoc, const sub_image_sta
                 sf::Vertex(sf::Vector2f(bottom_left.x, bottom_left.y), color),
         };
         edgeImage.draw(line, 4, sf::Lines);
-    }
-    else if (current_cu->tr_idx == 5) {
-        const sf::Vector2f  top_left = sf::Vector2f(
+    } else if (current_cu->tr_idx == 5) {
+        const sf::Vector2f top_left = sf::Vector2f(
                 (cuLoc->x - params->top_left_x) * params->scale + 2,
                 (cuLoc->y - params->top_left_y) * params->scale + 2);
         sf::Vertex line[] = {
@@ -213,7 +210,7 @@ void drawISP(void *data, const cu_loc_t *const cuLoc, const sub_image_stats *con
     func_parameters *params = (func_parameters *) data;
     sf::RenderTexture &edgeImage = params->edgeImage;
 
-    if(cuLoc->width * params->scale < 8 || cuLoc->height * params->scale < 8) {
+    if (cuLoc->width * params->scale < 8 || cuLoc->height * params->scale < 8) {
         return;
     }
     if (current_cu->isp == 0) {
@@ -232,28 +229,30 @@ void drawISP(void *data, const cu_loc_t *const cuLoc, const sub_image_stats *con
         sf::Vertex line[6];
         for (int i = 1; i < num_splits; i++) {
             line[(i - 1) * 2] = sf::Vertex(sf::Vector2f(top_left.x, top_left.y + offset * i), color);
-            line[(i - 1) * 2 + 1] = sf::Vertex(sf::Vector2f(top_left.x + cuLoc->width * params->scale - 1, top_left.y + offset * i),
-                                               color);
+            line[(i - 1) * 2 + 1] = sf::Vertex(
+                    sf::Vector2f(top_left.x + cuLoc->width * params->scale - 1, top_left.y + offset * i),
+                    color);
         }
         edgeImage.draw(line, 6, sf::Lines);
-    }
-    else if (current_cu->isp == 2 ){
+    } else if (current_cu->isp == 2) {
         int offset = cuLoc->width / num_splits * params->scale;
         sf::Vertex line[6];
         for (int i = 1; i < num_splits; i++) {
             line[(i - 1) * 2] = sf::Vertex(sf::Vector2f(top_left.x + offset * i, top_left.y), color);
-            line[(i - 1) * 2 + 1] = sf::Vertex(sf::Vector2f(top_left.x + offset * i, top_left.y + cuLoc->height * params->scale - 1),
-                                               color);
+            line[(i - 1) * 2 + 1] = sf::Vertex(
+                    sf::Vector2f(top_left.x + offset * i, top_left.y + cuLoc->height * params->scale - 1),
+                    color);
         }
         edgeImage.draw(line, 6, sf::Lines);
     }
 }
 
 
-void drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imageTexture, const int width, const int height,
-                    const sub_image_stats *const stat_array, sf::RenderTexture &zoomOverlayTexture, sf::RenderWindow &window,
-                    sf::Vector2i &previous_mouse_position, sf::Image &zoomImage, const sf::Vector2i &mousePosition,
-                    const float scaleX, const float scaleY) {
+void
+drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imageTexture, const int width, const int height,
+               const sub_image_stats *const stat_array, sf::RenderTexture &zoomOverlayTexture, sf::RenderWindow &window,
+               sf::Vector2i &previous_mouse_position, sf::Image &zoomImage, const sf::Vector2i &mousePosition,
+               const float scaleX, const float scaleY) {
     int top_right_x_of_zoom_area = clamp(static_cast<int>(mousePosition.x / scaleX - 32), 0, width - 64);
     int top_right_y_of_zoom_area = clamp(static_cast<int>(mousePosition.y / scaleY - 32), 0, height - 64);
 
@@ -262,7 +261,8 @@ void drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imag
     int top_left_needed_cu_y = clamp(floor_div(static_cast<int>(mousePosition.y / scaleY - 32), 64) * 64, 0,
                                      (height / 64 - 2) * 64);
 
-    if(top_right_x_of_zoom_area != previous_mouse_position.x || top_right_y_of_zoom_area != previous_mouse_position.y) {
+    if (top_right_x_of_zoom_area != previous_mouse_position.x ||
+        top_right_y_of_zoom_area != previous_mouse_position.y) {
         previous_mouse_position.x = top_right_x_of_zoom_area;
         previous_mouse_position.y = top_right_y_of_zoom_area;
         zoomImage.copy(imageTexture.getTexture().copyToImage(), 0, 0,
@@ -274,22 +274,22 @@ void drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imag
     }
     zoomOverlayTexture.clear(sf::Color::Transparent);
 
-    func_parameters params = { zoomOverlayTexture, colors,
+    func_parameters params = {zoomOverlayTexture, colors,
                               static_cast<uint32_t>(top_left_needed_cu_x),
-                              static_cast<uint32_t>(top_left_needed_cu_y), 4 };
-    std::vector<std::function<void(void*, const cu_loc_t* const, const sub_image_stats* const)> > funcs;
-    std::vector<void*> data;
+                              static_cast<uint32_t>(top_left_needed_cu_y), 4};
+    std::vector<std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> > funcs;
+    std::vector<void *> data;
     funcs.emplace_back(draw_cu);
-    data.push_back((void*)&params);
+    data.push_back((void *) &params);
     funcs.emplace_back(drawIntraModes);
-    data.push_back((void*)&params);
+    data.push_back((void *) &params);
 
     for (int x = top_left_needed_cu_x; x < top_left_needed_cu_x + 64 * 2; x += 64) {
-      for (int y = top_left_needed_cu_y; y < top_left_needed_cu_y + 64 * 2; y += 64) {
-        cu_loc_t cuLoc;
-        uvg_cu_loc_ctor(&cuLoc, x, y, 64, 64);
-        walk_tree(stat_array, &cuLoc, 0, width, height, funcs, data);
-      }
+        for (int y = top_left_needed_cu_y; y < top_left_needed_cu_y + 64 * 2; y += 64) {
+            cu_loc_t cuLoc;
+            uvg_cu_loc_ctor(&cuLoc, x, y, 64, 64);
+            walk_tree(stat_array, &cuLoc, 0, width, height, funcs, data);
+        }
     }
     zoomOverlayTexture.display();
 
@@ -312,7 +312,7 @@ void drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imag
 
 void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeRenderTexture,
                    const sub_image_stats *stat_array, sf::RenderWindow &window, const config &cfg,
-                   float &previous_scale, const sf::Color* const colors, const float scaleX) {
+                   float &previous_scale, const sf::Color *const colors, const float scaleX) {
     if (!cfg.show_grid && !cfg.show_intra && !cfg.show_transform) {
         return;
     }
@@ -372,7 +372,7 @@ int main() {
     sf::RenderTexture cuEdgeRenderTexture;
     cuEdgeRenderTexture.create(width, height);
 
-    void*context = zmq_ctx_new();
+    void *context = zmq_ctx_new();
     void *control_socket = zmq_socket(context, ZMQ_PUB);
     int rc = zmq_bind(control_socket, "tcp://*:5555");
     for (int i = 0; i < 10; i++) {
@@ -383,12 +383,12 @@ int main() {
 
     void *receiver = zmq_socket(context, ZMQ_SUB);
     rc = zmq_bind(receiver, "tcp://*:5556");
-    if(rc != 0) {
+    if (rc != 0) {
         std::cout << "Error binding to port 5556" << std::endl;
         return 1;
     }
     rc = zmq_setsockopt(receiver, ZMQ_SUBSCRIBE, "", 0);
-    if(rc != 0) {
+    if (rc != 0) {
         std::cout << "Error setting socket options" << std::endl;
         return 1;
     }
@@ -426,22 +426,25 @@ int main() {
     helpText.setOutlineColor(sf::Color::Black);
     helpText.setOutlineThickness(2);
     helpText.setPosition(20, 20);
-    helpText.setString("F: Toggle fullscreen\n"
-                       "H: Toggle help (this)\n"
-                       "G: Toggle cu grid\n"
-                       "I: Toggle intra modes\n"
-                       "W: Toggle transforms\n"
-                       "E: Toggle ISP\n"
-                       "Z: Toggle zoom window\n"
-                       "(Shift)+S: Toggle MRL\n"
-                       "(Shift)+M: Toggle MIP\n"
-                       "(Shift)+P: Toggle ISP\n"
-                       "(Shift)+T: Toggle MTS\n"
-                       "(Shift)+L: Toggle LFNST\n"
-                       "CTRL+0-3: Toggle MTT depth\n"
-                       "1-8: Toggle encoding speed\n"
-                       "D: Toggle debug\n"
-                       "ESC: Exit\n");
+    helpText.setString(
+            "Visualizer controls:\n"
+            "  F: Toggle fullscreen\n"
+            "  H: Toggle help (this)\n"
+            "  G: Toggle cu grid\n"
+            "  I: Toggle intra modes\n"
+            "  W: Toggle transforms\n"
+            "  E: Toggle ISP\n"
+            "  Z: Toggle zoom window\n"
+            "  D: Toggle debug\n"
+            "Encoder controls:\n"
+            "  (Shift)+S: Toggle MRL\n"
+            "  (Shift)+M: Toggle MIP\n"
+            "  (Shift)+P: Toggle ISP\n"
+            "  (Shift)+T: Toggle MTS\n"
+            "  (Shift)+L: Toggle LFNST\n"
+            "  CTRL+0-3: Toggle MTT depth\n"
+            "  1-8: Toggle encoding speed\n"
+            "ESC: Exit\n");
 
     // Create a window
     sf::RenderWindow window(sf::VideoMode(width, height), "VVC Visualizer");
@@ -525,12 +528,12 @@ int main() {
 
         window.draw(sprite);
         visualizeInfo(width, height, cuEdgeRenderTexture, stat_array, window, cfg, previous_scale,
-                       colors, scaleX);
+                      colors, scaleX);
 
         if (cfg.show_zoom) {
             drawZoomWindow(colors, imageTexture, width, height, stat_array, zoomOverlayTexture, window,
-                                    previous_mouse_position,
-                                    zoomImage, mousePosition, scaleX, scaleY);
+                           previous_mouse_position,
+                           zoomImage, mousePosition, scaleX, scaleY);
 
 
         }
