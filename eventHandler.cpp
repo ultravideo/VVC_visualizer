@@ -73,6 +73,13 @@ void EventHandler::handle(sf::Event &event, config &cfg, sf::RenderWindow &windo
             char *msg = const_cast<char *>(ctrl_pressed ? "C3" : "3");
             zmq_send(control_socket, msg, 2, 0);
         }
+        if(event.key.code >= sf::Keyboard::Num4 && event.key.code < sf::Keyboard::Num9) {
+            if(!ctrl_pressed && !shift_pressed) {
+                const std::string temp = std::to_string(event.key.code - sf::Keyboard::Num0);
+                char *msg = const_cast<char *>(temp.c_str());
+                zmq_send(control_socket, msg, 1, 0);
+            }
+        }
         if(event.key.code == sf::Keyboard::LControl || event.key.code == sf::Keyboard::RControl) {
             ctrl_pressed = true;
         }
