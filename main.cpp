@@ -232,7 +232,7 @@ void drawISP(void *data, const cu_loc_t *const cuLoc, const sub_image_stats *con
         sf::Vertex line[6];
         for (int i = 1; i < num_splits; i++) {
             line[(i - 1) * 2] = sf::Vertex(sf::Vector2f(top_left.x, top_left.y + offset * i), color);
-            line[(i - 1) * 2 + 1] = sf::Vertex(sf::Vector2f(top_left.x + cuLoc->width * params->scale, top_left.y + offset * i),
+            line[(i - 1) * 2 + 1] = sf::Vertex(sf::Vector2f(top_left.x + cuLoc->width * params->scale - 1, top_left.y + offset * i),
                                                color);
         }
         edgeImage.draw(line, 6, sf::Lines);
@@ -242,7 +242,7 @@ void drawISP(void *data, const cu_loc_t *const cuLoc, const sub_image_stats *con
         sf::Vertex line[6];
         for (int i = 1; i < num_splits; i++) {
             line[(i - 1) * 2] = sf::Vertex(sf::Vector2f(top_left.x + offset * i, top_left.y), color);
-            line[(i - 1) * 2 + 1] = sf::Vertex(sf::Vector2f(top_left.x + offset * i, top_left.y + cuLoc->height * params->scale),
+            line[(i - 1) * 2 + 1] = sf::Vertex(sf::Vector2f(top_left.x + offset * i, top_left.y + cuLoc->height * params->scale - 1),
                                                color);
         }
         edgeImage.draw(line, 6, sf::Lines);
