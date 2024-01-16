@@ -209,6 +209,47 @@ void drawTransforms(void *data, const cu_loc_t *const cuLoc, const sub_image_sta
 }
 
 
+void drawISP(void *data, const cu_loc_t *const cuLoc, const sub_image_stats *const current_cu) {
+    func_parameters *params = (func_parameters *) data;
+    sf::RenderTexture &edgeImage = params->edgeImage;
+
+    if(cuLoc->width * params->scale < 8 || cuLoc->height * params->scale < 8) {
+        return;
+    }
+    if (current_cu->isp == 0) {
+        return;
+    }
+
+    int num_splits = cuLoc->width * cuLoc->height == 32 ? 2 : 4;
+
+    const sf::Vector2f top_left = sf::Vector2f(
+            (cuLoc->x - params->top_left_x) * params->scale,
+            (cuLoc->y - params->top_left_y) * params->scale);
+
+    sf::Color color = sf::Color::Blue;
+    if (current_cu->isp == 1) {
+        int offset = cuLoc->height / num_splits * params->scale;
+        sf::Vertex line[6];
+        for (int i = 1; i < num_splits; i++) {
+            line[(i - 1) * 2] = sf::Vertex(sf::Vector2f(top_left.x, top_left.y + offset * i), color);
+            line[(i - 1) * 2 + 1] = sf::Vertex(sf::Vector2f(top_left.x + cuLoc->width * params->scale, top_left.y + offset * i),
+                                               color);
+        }
+        edgeImage.draw(line, 6, sf::Lines);
+    }
+    else if (current_cu->isp == 2 ){
+        int offset = cuLoc->width / num_splits * params->scale;
+        sf::Vertex line[6];
+        for (int i = 1; i < num_splits; i++) {
+            line[(i - 1) * 2] = sf::Vertex(sf::Vector2f(top_left.x + offset * i, top_left.y), color);
+            line[(i - 1) * 2 + 1] = sf::Vertex(sf::Vector2f(top_left.x + offset * i, top_left.y + cuLoc->height * params->scale),
+                                               color);
+        }
+        edgeImage.draw(line, 6, sf::Lines);
+    }
+}
+
+
 void drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imageTexture, const int width, const int height,
                     const sub_image_stats *const stat_array, sf::RenderTexture &zoomOverlayTexture, sf::RenderWindow &window,
                     sf::Vector2i &previous_mouse_position, sf::Image &zoomImage, const sf::Vector2i &mousePosition,
@@ -285,6 +326,10 @@ void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeR
     func_parameters params = {cuEdgeRenderTexture, colors, 0, 0, scaleX};
     if (cfg.show_grid) {
         funcs.emplace_back(draw_cu);
+        data.push_back((void *) &params);
+    }
+    if (cfg.show_isp) {
+        funcs.emplace_back(drawISP);
         data.push_back((void *) &params);
     }
     if (cfg.show_transform) {
@@ -386,6 +431,7 @@ int main() {
                        "G: Toggle cu grid\n"
                        "I: Toggle intra modes\n"
                        "W: Toggle transforms\n"
+                       "E: Toggle ISP\n"
                        "Z: Toggle zoom window\n"
                        "(Shift)+S: Toggle MRL\n"
                        "(Shift)+M: Toggle MIP\n"

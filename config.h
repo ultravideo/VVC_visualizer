@@ -10,6 +10,7 @@ struct config {
     bool show_qp;
     bool show_intra;
     bool show_transform;
+    bool show_isp;
     bool fullscreen;
     bool show_debug;
     bool show_help;
@@ -21,6 +22,7 @@ struct config {
         show_qp = false;
         show_intra = true;
         show_transform = true;
+        show_isp = true;
         fullscreen = false;
         show_debug = false;
         show_help = true;

@@ -43,6 +43,9 @@ void EventHandler::handle(sf::Event &event, config &cfg, sf::RenderWindow &windo
         if (event.key.code == sf::Keyboard::W) {
             cfg.show_transform = !cfg.show_transform;
         }
+        if (event.key.code == sf::Keyboard::E) {
+            cfg.show_isp = !cfg.show_isp;
+        }
         if(event.key.code == sf::Keyboard::S) {
             char *msg = const_cast<char *>(shift_pressed ? "s" : "S");
             zmq_send(control_socket, msg, 1, 0);
