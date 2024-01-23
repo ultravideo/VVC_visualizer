@@ -8,7 +8,7 @@
 #include "zmq.h"
 #include "util.h"
 
-void EventHandler::handle(sf::Event &event, config &cfg, sf::RenderWindow &window) {
+bool EventHandler::handle(sf::Event &event, config &cfg, sf::RenderWindow &window) {
     if (event.type == sf::Event::Closed) {
         window.close();
         cfg.running = false;
@@ -17,6 +17,7 @@ void EventHandler::handle(sf::Event &event, config &cfg, sf::RenderWindow &windo
     if (event.type == sf::Event::KeyPressed) {
         if (event.key.code == sf::Keyboard::F) {
             toggleFullscreen(cfg, window);
+            return true;
         }
         if (event.key.code == sf::Keyboard::Escape) {
             window.close();
@@ -24,27 +25,36 @@ void EventHandler::handle(sf::Event &event, config &cfg, sf::RenderWindow &windo
         }
         if (event.key.code == sf::Keyboard::G) {
             cfg.show_grid = !cfg.show_grid;
+            return true;
         }
         if (event.key.code == sf::Keyboard::Z) {
             cfg.show_zoom = !cfg.show_zoom;
         }
         if (event.key.code == sf::Keyboard::I) {
             cfg.show_intra = !cfg.show_intra;
+            return true;
         }
         if (event.key.code == sf::Keyboard::D) {
             cfg.show_debug = !cfg.show_debug;
         }
-        if (event.key.code == sf::Keyboard::H) {
+        if (event.key.code == sf::Keyboard::H || event.key.code == sf::Keyboard::F1) {
             cfg.show_help = !cfg.show_help;
         }
         if (event.key.code == sf::Keyboard::Q) {
             cfg.show_qp = !cfg.show_qp;
+            return true;
         }
         if (event.key.code == sf::Keyboard::W) {
             cfg.show_transform = !cfg.show_transform;
+            return true;
         }
         if (event.key.code == sf::Keyboard::E) {
             cfg.show_isp = !cfg.show_isp;
+            return true;
+        }
+        if (event.key.code == sf::Keyboard::Space) {
+            cfg.paused = !cfg.paused;
+            return true;
         }
         if(event.key.code == sf::Keyboard::S) {
             char *msg = const_cast<char *>(shift_pressed ? "s" : "S");
@@ -119,6 +129,7 @@ void EventHandler::handle(sf::Event &event, config &cfg, sf::RenderWindow &windo
         if (event.mouseButton.button == sf::Mouse::Left) {
             if (now - last_click < 400'000'000) {
                 toggleFullscreen(cfg, window);
+                return true;
             }
             last_click = now;
         }
@@ -128,6 +139,7 @@ void EventHandler::handle(sf::Event &event, config &cfg, sf::RenderWindow &windo
             last_click2 = now;
         }
     }
+    return false;
 }
 
 void EventHandler::toggleFullscreen(config &cfg, sf::RenderWindow &window) const {

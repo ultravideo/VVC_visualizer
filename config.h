@@ -16,6 +16,7 @@ struct config {
     bool show_help;
     bool running;
     bool show_zoom;
+    bool paused;
 
     config() {
         show_grid = true;
@@ -29,6 +30,7 @@ struct config {
         running = true;
         show_debug = false;
         show_zoom = false;
+        paused = false;
     }
 };
 

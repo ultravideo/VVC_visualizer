@@ -315,7 +315,8 @@ drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imageText
 void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeRenderTexture,
                    const sub_image_stats *stat_array, sf::RenderWindow &window, const config &cfg,
                    float &previous_scale, const sf::Color *const colors, const float scaleX,
-                   RenderBufferManager &renderBufferManager, const std::unordered_set<uint32_t> &modified_ctus) {
+                   RenderBufferManager &renderBufferManager, const std::unordered_set<uint32_t> &modified_ctus,
+                   bool setting_changed) {
     if (!cfg.show_grid && !cfg.show_intra && !cfg.show_transform) {
         return;
     }
@@ -344,31 +345,43 @@ void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeR
         data.push_back((void *) &params);
     }
     // cuEdgeRenderTexture.clear(sf::Color::Transparent);
-    for(uint32_t tempx : modified_ctus) {
-        uint32_t x = tempx & 0xFFFFu;
-        uint32_t y = tempx >> 16u;
-        cu_loc_t cuLoc;
-        params.top_left_x = x * 64;
-        params.top_left_y = y * 64;
-        params.edgeImage = renderBufferManager.get_buffer(x * 64, y * 64);
-        uvg_cu_loc_ctor(&cuLoc, x * 64, y *64, 64, 64);
-        walk_tree(stat_array, &cuLoc, 0, width, height, funcs, data);
+    if(!cfg.paused) {
+        if(!setting_changed) {
+            for (uint32_t tempx: modified_ctus) {
+                uint32_t x = tempx & 0xFFFFu;
+                uint32_t y = tempx >> 16u;
+                cu_loc_t cuLoc;
+                params.top_left_x = x * 64;
+                params.top_left_y = y * 64;
+                params.edgeImage = renderBufferManager.get_buffer(x * 64, y * 64);
+                uvg_cu_loc_ctor(&cuLoc, x * 64, y * 64, 64, 64);
+                walk_tree(stat_array, &cuLoc, 0, width, height, funcs, data);
+            }
+
+            const sf::BlendMode blendMode = sf::BlendMode(sf::BlendMode::Factor::One, sf::BlendMode::Factor::Zero,
+                                                          sf::BlendMode::Equation::Add,
+                                                          sf::BlendMode::Factor::One, sf::BlendMode::Factor::Zero,
+                                                          sf::BlendMode::Equation::Add);
+            const sf::RenderStates states = sf::RenderStates(blendMode);
+
+            for (auto [x, y, buffer]: renderBufferManager.get_modified_ctus()) {
+                buffer->display();
+                sf::Sprite grid_sprite = sf::Sprite(buffer->getTexture());
+                grid_sprite.setPosition(x * scaleX, y * scaleX);
+                cuEdgeRenderTexture.draw(grid_sprite, states);
+            }
+        } else {
+            cuEdgeRenderTexture.clear(sf::Color::Transparent);
+            for (int y = 0; y < height; y+=64) {
+                for (int x = 0; x < width; x+=64) {
+                    cu_loc_t cuLoc;
+                    uvg_cu_loc_ctor(&cuLoc, x, y, 64, 64);
+                    walk_tree(stat_array, &cuLoc, 0, width, height, funcs, data);
+                }
+            }
+        }
+        renderBufferManager.clear();
     }
-
-    const sf::BlendMode blendMode = sf::BlendMode(sf::BlendMode::Factor::One, sf::BlendMode::Factor::Zero,
-                                                  sf::BlendMode::Equation::Add,
-                                                  sf::BlendMode::Factor::One, sf::BlendMode::Factor::Zero,
-                                                  sf::BlendMode::Equation::Add);
-    const sf::RenderStates states = sf::RenderStates(blendMode);
-
-    for (auto [x, y, buffer] : renderBufferManager.get_modified_ctus()) {
-        buffer->display();
-        sf::Sprite grid_sprite = sf::Sprite(buffer->getTexture());
-        grid_sprite.setPosition(x * scaleX, y * scaleX);
-        cuEdgeRenderTexture.draw(grid_sprite, states);
-    }
-
-    renderBufferManager.clear();
 
     cuEdgeRenderTexture.display();
     sf::Sprite grid_sprite = sf::Sprite(cuEdgeRenderTexture.getTexture());
@@ -488,6 +501,8 @@ int main() {
     current_cu.stats.timestamp = 0;
     config cfg;
     float previous_scale = 1;
+    bool setting_changed = false;
+    sf::Image newImage;
     while (cfg.running) {
         if (data_file.eof() || !data_file.good()) {
             break;
@@ -500,8 +515,9 @@ int main() {
         uint64_t render_start_timestamp;
         GET_TIME(ts, render_start_timestamp);
 
-        sf::Image newImage;
-        newImage.create(width, height, sf::Color::Transparent);
+        if(!cfg.paused) {
+            newImage.create(width, height, sf::Color::Transparent);
+        }
         while ((current_cu.stats.timestamp - 33'000'000) - timestamp < 33'000'000) {
             current_cu = readOneCU(receiver);
             if (data_file.eof() || !data_file.good() || current_cu.stats.width == 0 || current_cu.stats.height == 0) {
@@ -529,10 +545,12 @@ int main() {
         uint64_t data_process_end_timestamp;
         GET_TIME(ts, data_process_end_timestamp);
 
-        sf::Texture newTexture;
-        newTexture.loadFromImage(newImage);
-        sf::Sprite newSprite(newTexture);
-        imageTexture.draw(newSprite);
+        if(!cfg.paused) {
+            sf::Texture newTexture;
+            newTexture.loadFromImage(newImage);
+            sf::Sprite newSprite(newTexture);
+            imageTexture.draw(newSprite);
+        }
 
         timestamp = temp_timestamp;
         // Get the position of the cursor relative to the window
@@ -559,7 +577,7 @@ int main() {
 
         window.draw(sprite);
         visualizeInfo(width, height, cuEdgeRenderTexture, stat_array, window, cfg, previous_scale,
-                      colors, scaleX, renderBufferManager, modified_ctus);
+                      colors, scaleX, renderBufferManager, modified_ctus, setting_changed);
 
         if (cfg.show_zoom) {
             drawZoomWindow(colors, imageTexture, width, height, stat_array, zoomOverlayTexture, window,
@@ -587,10 +605,10 @@ int main() {
         window.display();
 
         // Toggle fullscreen on 'f' key press
-
+        setting_changed = false;
         sf::Event event;
         while (window.pollEvent(event)) {
-            eventHandler.handle(event, cfg, window);
+            setting_changed |= eventHandler.handle(event, cfg, window);
         }
     }
 
