@@ -17,6 +17,7 @@ class RenderBufferManager {
     std::vector< std::unique_ptr< sf::RenderTexture> > renderBuffers_;
 
     std::map<uint32_t, uint32_t> bufferMap_;
+    float scale_ = 1.0f;
 
 public:
     explicit RenderBufferManager(float scale)  {
@@ -28,15 +29,16 @@ public:
     }
 
     void changeScale(float scale) {
-        for (int i = 0; i < 8; i++) {
+        scale_ = scale;
+        for (int i = 0; i < renderBuffers_.size(); i++) {
             renderBuffers_[i]->create(64 * scale, 64 * scale);
         }
     }
 
     void clear() {
-        for (int i = 0; i < bufferMap_.size(); i++) {
-            renderBuffers_[i]->clear(sf::Color::Transparent);
-        }
+//        for (int i = 0; i < bufferMap_.size(); i++) {
+//            renderBuffers_[i]->clear(sf::Color::Transparent);
+//        }
         bufferMap_.clear();
     }
 
@@ -51,10 +53,10 @@ public:
         uint32_t index = bufferMap_.size();
         if (index >= renderBuffers_.size()) {
             renderBuffers_.emplace_back( new sf::RenderTexture );
-            renderBuffers_.back()->create(64, 64);
-            std::cout << "Created new buffer" << std::endl;
+            renderBuffers_.back()->create(64 * scale_, 64 * scale_);
         }
         bufferMap_[key] = index;
+        renderBuffers_[index]->clear(sf::Color::Transparent);
         return renderBuffers_[index].get();
     }
 

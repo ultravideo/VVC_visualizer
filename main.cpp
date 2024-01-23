@@ -5,6 +5,7 @@
 #include <zmq.h>
 #include <SFML/Graphics.hpp>
 #include <cstdint>
+#include <unordered_set>
 
 #include "cu.h"
 #include "util.h"
@@ -314,7 +315,7 @@ drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imageText
 void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeRenderTexture,
                    const sub_image_stats *stat_array, sf::RenderWindow &window, const config &cfg,
                    float &previous_scale, const sf::Color *const colors, const float scaleX,
-                   RenderBufferManager &renderBufferManager) {
+                   RenderBufferManager &renderBufferManager, const std::unordered_set<uint32_t> &modified_ctus) {
     if (!cfg.show_grid && !cfg.show_intra && !cfg.show_transform) {
         return;
     }
@@ -343,16 +344,15 @@ void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeR
         data.push_back((void *) &params);
     }
     cuEdgeRenderTexture.clear(sf::Color::Transparent);
-    for (int y = 0; y < height; y += 64) {
-        for (int x = 0; x < width; x += 64) {
-            cu_loc_t cuLoc;
-            sf::RenderTexture *buffer = renderBufferManager.get_buffer(x, y);
-            params.edgeImage = buffer;
-            params.top_left_y = y;
-            params.top_left_x = x;
-            uvg_cu_loc_ctor(&cuLoc, x, y, 64, 64);
-            walk_tree(stat_array, &cuLoc, 0, width, height, funcs, data);
-        }
+    for(uint32_t tempx : modified_ctus) {
+        uint32_t x = tempx & 0xFFFFu;
+        uint32_t y = tempx >> 16u;
+        cu_loc_t cuLoc;
+        params.top_left_x = x * 64;
+        params.top_left_y = y * 64;
+        params.edgeImage = renderBufferManager.get_buffer(x * 64, y * 64);
+        uvg_cu_loc_ctor(&cuLoc, x * 64, y *64, 64, 64);
+        walk_tree(stat_array, &cuLoc, 0, width, height, funcs, data);
     }
 
     for (auto [x, y, buffer] : renderBufferManager.get_modified_ctus()) {
@@ -489,6 +489,8 @@ int main() {
         // Read one CU from the data file
         int64_t temp_timestamp = current_cu.stats.timestamp;
 
+        std::unordered_set<uint32_t> modified_ctus{};
+
         uint64_t render_start_timestamp;
         GET_TIME(ts, render_start_timestamp);
 
@@ -510,6 +512,7 @@ int main() {
                 }
                 break;
             }
+            modified_ctus.insert(((current_cu.stats.y / 64) << 16) | (current_cu.stats.x / 64) );
 
             sf::Image cuImage;
             cuImage.create(current_cu.stats.width, current_cu.stats.height, current_cu.image);
@@ -550,7 +553,7 @@ int main() {
 
         window.draw(sprite);
         visualizeInfo(width, height, cuEdgeRenderTexture, stat_array, window, cfg, previous_scale,
-                      colors, scaleX, renderBufferManager);
+                      colors, scaleX, renderBufferManager, modified_ctus);
 
         if (cfg.show_zoom) {
             drawZoomWindow(colors, imageTexture, width, height, stat_array, zoomOverlayTexture, window,
