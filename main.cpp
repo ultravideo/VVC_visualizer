@@ -35,6 +35,10 @@ drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imageText
                const sf::Vector2i &previous_mouse_position, sf::Image &zoomImage, const sf::Vector2i &mousePosition,
                const float scaleX, const float scaleY);
 
+void
+readInput(const int width, void *receiver, const sub_image_stats *stat_array, int64_t timestamp, sf::Image &newImage,
+          std::unordered_set<uint32_t> &modified_ctus, sub_image &current_cu, int64_t &temp_timestamp);
+
 void draw_cu(void *data, const cu_loc_t *const cuLoc, const sub_image_stats *const current_cu) {
     func_parameters *params = (func_parameters *) data;
     sf::RenderTexture *edgeImage = params->edgeImage;
@@ -345,8 +349,8 @@ void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeR
         data.push_back((void *) &params);
     }
     // cuEdgeRenderTexture.clear(sf::Color::Transparent);
-    if(!cfg.paused) {
-        if(!setting_changed) {
+    if (!cfg.paused) {
+        if (!setting_changed) {
             for (uint32_t tempx: modified_ctus) {
                 uint32_t x = tempx & 0xFFFFu;
                 uint32_t y = tempx >> 16u;
@@ -372,8 +376,8 @@ void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeR
             }
         } else {
             cuEdgeRenderTexture.clear(sf::Color::Transparent);
-            for (int y = 0; y < height; y+=64) {
-                for (int x = 0; x < width; x+=64) {
+            for (int y = 0; y < height; y += 64) {
+                for (int x = 0; x < width; x += 64) {
                     cu_loc_t cuLoc;
                     uvg_cu_loc_ctor(&cuLoc, x, y, 64, 64);
                     walk_tree(stat_array, &cuLoc, 0, width, height, funcs, data);
@@ -469,6 +473,7 @@ int main() {
             "  I: Toggle intra modes\n"
             "  W: Toggle transforms\n"
             "  E: Toggle ISP\n"
+            "  Space: (Un)pause\n"
             "  Z: Toggle zoom window\n"
             "  D: Toggle debug\n"
             "Encoder controls:\n"
@@ -515,37 +520,15 @@ int main() {
         uint64_t render_start_timestamp;
         GET_TIME(ts, render_start_timestamp);
 
-        if(!cfg.paused) {
+        if (!cfg.paused) {
             newImage.create(width, height, sf::Color::Transparent);
         }
-        while ((current_cu.stats.timestamp - 33'000'000) - timestamp < 33'000'000) {
-            current_cu = readOneCU(receiver);
-            if (data_file.eof() || !data_file.good() || current_cu.stats.width == 0 || current_cu.stats.height == 0) {
-                break;
-            }
-            temp_timestamp = current_cu.stats.timestamp;
-            // zmq_recv(receiver, &temp_timestamp, 8, 0);
-
-            for (int y = current_cu.rect.top; y < current_cu.rect.top + current_cu.rect.height - 1; y += 4) {
-                for (int x = current_cu.rect.left; x < current_cu.rect.left + current_cu.rect.width - 1; x += 4) {
-                    int index = (y / 4) * (width / 4) + (x / 4);
-                    memcpy(&stat_array[index], &current_cu.stats, sizeof(current_cu.stats));
-                    break;
-                }
-                break;
-            }
-            modified_ctus.insert(((current_cu.stats.y / 64) << 16) | (current_cu.stats.x / 64) );
-
-            sf::Image cuImage;
-            cuImage.create(current_cu.stats.width, current_cu.stats.height, current_cu.image);
-
-            newImage.copy(cuImage, current_cu.stats.x, current_cu.stats.y);
-        }
+        readInput(width, receiver, stat_array, timestamp, newImage, modified_ctus, current_cu, temp_timestamp);
 
         uint64_t data_process_end_timestamp;
         GET_TIME(ts, data_process_end_timestamp);
 
-        if(!cfg.paused) {
+        if (!cfg.paused) {
             sf::Texture newTexture;
             newTexture.loadFromImage(newImage);
             sf::Sprite newSprite(newTexture);
@@ -620,4 +603,29 @@ int main() {
     window.close();
 
     return 0;
+}
+
+void
+readInput(const int width, void *receiver, const sub_image_stats *stat_array, int64_t timestamp, sf::Image &newImage,
+          std::unordered_set<uint32_t> &modified_ctus, sub_image &current_cu, int64_t &temp_timestamp) {
+    while ((current_cu.stats.timestamp - 33'000'000) - timestamp < 33'000'000) {
+        current_cu = readOneCU(receiver);
+        temp_timestamp = current_cu.stats.timestamp;
+        // zmq_recv(receiver, &temp_timestamp, 8, 0);
+
+        for (int y = current_cu.rect.top; y < current_cu.rect.top + current_cu.rect.height - 1; y += 4) {
+            for (int x = current_cu.rect.left; x < current_cu.rect.left + current_cu.rect.width - 1; x += 4) {
+                int index = (y / 4) * (width / 4) + (x / 4);
+                memcpy((void *) &stat_array[index], &current_cu.stats, sizeof(current_cu.stats));
+                break;
+            }
+            break;
+        }
+        modified_ctus.insert(((current_cu.stats.y / 64) << 16) | (current_cu.stats.x / 64));
+
+        sf::Image cuImage;
+        cuImage.create(current_cu.stats.width, current_cu.stats.height, current_cu.image);
+
+        newImage.copy(cuImage, current_cu.stats.x, current_cu.stats.y);
+    }
 }
