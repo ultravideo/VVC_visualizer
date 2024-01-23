@@ -343,7 +343,7 @@ void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeR
         funcs.emplace_back(drawIntraModes);
         data.push_back((void *) &params);
     }
-    cuEdgeRenderTexture.clear(sf::Color::Transparent);
+    // cuEdgeRenderTexture.clear(sf::Color::Transparent);
     for(uint32_t tempx : modified_ctus) {
         uint32_t x = tempx & 0xFFFFu;
         uint32_t y = tempx >> 16u;
@@ -355,18 +355,24 @@ void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeR
         walk_tree(stat_array, &cuLoc, 0, width, height, funcs, data);
     }
 
+    const sf::BlendMode blendMode = sf::BlendMode(sf::BlendMode::Factor::One, sf::BlendMode::Factor::Zero,
+                                                  sf::BlendMode::Equation::Add,
+                                                  sf::BlendMode::Factor::One, sf::BlendMode::Factor::Zero,
+                                                  sf::BlendMode::Equation::Add);
+    const sf::RenderStates states = sf::RenderStates(blendMode);
+
     for (auto [x, y, buffer] : renderBufferManager.get_modified_ctus()) {
         buffer->display();
         sf::Sprite grid_sprite = sf::Sprite(buffer->getTexture());
         grid_sprite.setPosition(x * scaleX, y * scaleX);
-        window.draw(grid_sprite);
+        cuEdgeRenderTexture.draw(grid_sprite, states);
     }
 
     renderBufferManager.clear();
 
-    //cuEdgeRenderTexture.display();
-    //sf::Sprite grid_sprite = sf::Sprite(cuEdgeRenderTexture.getTexture());
-    //window.draw(grid_sprite);
+    cuEdgeRenderTexture.display();
+    sf::Sprite grid_sprite = sf::Sprite(cuEdgeRenderTexture.getTexture());
+    window.draw(grid_sprite);
 }
 
 
