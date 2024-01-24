@@ -508,6 +508,7 @@ int main() {
     float previous_scale = 1;
     bool setting_changed = false;
     sf::Image newImage;
+    newImage.create(width, height, sf::Color::Transparent);
     while (cfg.running) {
         if (data_file.eof() || !data_file.good()) {
             break;
@@ -520,9 +521,6 @@ int main() {
         uint64_t render_start_timestamp;
         GET_TIME(ts, render_start_timestamp);
 
-        if (!cfg.paused) {
-            newImage.create(width, height, sf::Color::Transparent);
-        }
         readInput(width, receiver, stat_array, timestamp, newImage, modified_ctus, current_cu, temp_timestamp);
 
         uint64_t data_process_end_timestamp;
@@ -533,6 +531,7 @@ int main() {
             newTexture.loadFromImage(newImage);
             sf::Sprite newSprite(newTexture);
             imageTexture.draw(newSprite);
+            newImage.create(width, height, sf::Color::Transparent);
         }
 
         timestamp = temp_timestamp;
