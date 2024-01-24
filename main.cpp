@@ -1,6 +1,7 @@
 #include <fstream>
 #include <iostream>
 #include <cstring>
+#include <thread>
 
 #include <zmq.h>
 #include <SFML/Graphics.hpp>
@@ -500,7 +501,7 @@ int main() {
 
     EventHandler eventHandler(width, height, control_socket);
 
-    int64_t timestamp = 0;
+    int64_t timestamp = 0, temp_timestamp = 0;
     // Draw and display the line in each frame
     sub_image current_cu;
     current_cu.stats.timestamp = 0;
@@ -509,6 +510,19 @@ int main() {
     bool setting_changed = false;
     sf::Image newImage;
     newImage.create(width, height, sf::Color::Transparent);
+
+    std::unordered_set<uint32_t> modified_ctus{};
+    std::thread reader_thread(
+            readInput,
+            width,
+            receiver,
+            stat_array,
+            timestamp,
+            std::ref(newImage),
+            std::ref(modified_ctus),
+            std::ref(current_cu),
+            std::ref(temp_timestamp));
+
     while (cfg.running) {
         if (data_file.eof() || !data_file.good()) {
             break;
@@ -516,12 +530,11 @@ int main() {
         // Read one CU from the data file
         int64_t temp_timestamp = current_cu.stats.timestamp;
 
-        std::unordered_set<uint32_t> modified_ctus{};
 
         uint64_t render_start_timestamp;
         GET_TIME(ts, render_start_timestamp);
 
-        readInput(width, receiver, stat_array, timestamp, newImage, modified_ctus, current_cu, temp_timestamp);
+        // readInput(width, receiver, stat_array, timestamp, newImage, modified_ctus, current_cu, temp_timestamp);
 
         uint64_t data_process_end_timestamp;
         GET_TIME(ts, data_process_end_timestamp);
@@ -560,6 +573,7 @@ int main() {
         window.draw(sprite);
         visualizeInfo(width, height, cuEdgeRenderTexture, stat_array, window, cfg, previous_scale,
                       colors, scaleX, renderBufferManager, modified_ctus, setting_changed);
+        modified_ctus.clear();
 
         if (cfg.show_zoom) {
             drawZoomWindow(colors, imageTexture, width, height, stat_array, zoomOverlayTexture, window,
@@ -593,7 +607,7 @@ int main() {
             setting_changed |= eventHandler.handle(event, cfg, window);
         }
     }
-
+    reader_thread.join();
     zmq_close(control_socket);
     zmq_close(receiver);
     zmq_ctx_destroy(context);
@@ -607,24 +621,27 @@ int main() {
 void
 readInput(const int width, void *receiver, const sub_image_stats *stat_array, int64_t timestamp, sf::Image &newImage,
           std::unordered_set<uint32_t> &modified_ctus, sub_image &current_cu, int64_t &temp_timestamp) {
-    while ((current_cu.stats.timestamp - 33'000'000) - timestamp < 33'000'000) {
-        current_cu = readOneCU(receiver);
-        temp_timestamp = current_cu.stats.timestamp;
-        // zmq_recv(receiver, &temp_timestamp, 8, 0);
+    for(;;) {
+        while ((current_cu.stats.timestamp - 33'000'000) - timestamp < 33'000'000) {
+            current_cu = readOneCU(receiver);
+            temp_timestamp = current_cu.stats.timestamp;
+            // zmq_recv(receiver, &temp_timestamp, 8, 0);
 
-        for (int y = current_cu.rect.top; y < current_cu.rect.top + current_cu.rect.height - 1; y += 4) {
-            for (int x = current_cu.rect.left; x < current_cu.rect.left + current_cu.rect.width - 1; x += 4) {
-                int index = (y / 4) * (width / 4) + (x / 4);
-                memcpy((void *) &stat_array[index], &current_cu.stats, sizeof(current_cu.stats));
+            for (int y = current_cu.rect.top; y < current_cu.rect.top + current_cu.rect.height - 1; y += 4) {
+                for (int x = current_cu.rect.left; x < current_cu.rect.left + current_cu.rect.width - 1; x += 4) {
+                    int index = (y / 4) * (width / 4) + (x / 4);
+                    memcpy((void *) &stat_array[index], &current_cu.stats, sizeof(current_cu.stats));
+                    break;
+                }
                 break;
             }
-            break;
+            modified_ctus.insert(((current_cu.stats.y / 64) << 16) | (current_cu.stats.x / 64));
+
+            sf::Image cuImage;
+            cuImage.create(current_cu.stats.width, current_cu.stats.height, current_cu.image);
+
+            newImage.copy(cuImage, current_cu.stats.x, current_cu.stats.y);
         }
-        modified_ctus.insert(((current_cu.stats.y / 64) << 16) | (current_cu.stats.x / 64));
-
-        sf::Image cuImage;
-        cuImage.create(current_cu.stats.width, current_cu.stats.height, current_cu.image);
-
-        newImage.copy(cuImage, current_cu.stats.x, current_cu.stats.y);
+        timestamp = temp_timestamp;
     }
 }
