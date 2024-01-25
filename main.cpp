@@ -30,15 +30,41 @@ struct func_parameters {
     float scale;
 };
 
-void
-drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imageTexture, const int width, const int height,
-               const sub_image_stats *const stat_array, sf::RenderTexture &zoomOverlayTexture, sf::RenderWindow &window,
-               const sf::Vector2i &previous_mouse_position, sf::Image &zoomImage, const sf::Vector2i &mousePosition,
-               const float scaleX, const float scaleY);
+
+void readInput(const int width, void *receiver, const sub_image_stats *stat_array, sf::Image &newImage,
+          std::unordered_set<uint32_t> &modified_ctus) {
+    sub_image current_cu;
+    current_cu.stats.timestamp = 0;
+    int64_t timestamp = 0;
+    for(;;) {
+        int64_t temp_timestamp = current_cu.stats.timestamp;
+        while ((current_cu.stats.timestamp - 33'000'000) - timestamp < 33'000'000) {
+            current_cu = readOneCU(receiver);
+            temp_timestamp = current_cu.stats.timestamp;
+
+            for (int y = current_cu.rect.top; y < current_cu.rect.top + current_cu.rect.height - 1; y += 4) {
+                for (int x = current_cu.rect.left; x < current_cu.rect.left + current_cu.rect.width - 1; x += 4) {
+                    int index = (y / 4) * (width / 4) + (x / 4);
+                    memcpy((void *) &stat_array[index], &current_cu.stats, sizeof(current_cu.stats));
+                    break;
+                }
+                break;
+            }
+            modified_ctus.insert(((current_cu.stats.y / 64) << 16) | (current_cu.stats.x / 64));
+
+            sf::Image cuImage;
+            cuImage.create(current_cu.stats.width, current_cu.stats.height, current_cu.image);
+
+            newImage.copy(cuImage, current_cu.stats.x, current_cu.stats.y);
+        }
+        timestamp = temp_timestamp;
+    }
+}
+
 
 void
-readInput(const int width, void *receiver, const sub_image_stats *stat_array, int64_t timestamp, sf::Image &newImage,
-          std::unordered_set<uint32_t> &modified_ctus, sub_image &current_cu, int64_t &temp_timestamp);
+readInput(const int width, void *receiver, const sub_image_stats *stat_array, sf::Image &newImage,
+          std::unordered_set<uint32_t> &modified_ctus);
 
 void draw_cu(void *data, const cu_loc_t *const cuLoc, const sub_image_stats *const current_cu) {
     func_parameters *params = (func_parameters *) data;
@@ -501,10 +527,6 @@ int main() {
 
     EventHandler eventHandler(width, height, control_socket);
 
-    int64_t timestamp = 0, temp_timestamp = 0;
-    // Draw and display the line in each frame
-    sub_image current_cu;
-    current_cu.stats.timestamp = 0;
     config cfg;
     float previous_scale = 1;
     bool setting_changed = false;
@@ -517,19 +539,14 @@ int main() {
             width,
             receiver,
             stat_array,
-            timestamp,
             std::ref(newImage),
-            std::ref(modified_ctus),
-            std::ref(current_cu),
-            std::ref(temp_timestamp));
+            std::ref(modified_ctus));
 
     while (cfg.running) {
         if (data_file.eof() || !data_file.good()) {
             break;
         }
         // Read one CU from the data file
-        int64_t temp_timestamp = current_cu.stats.timestamp;
-
 
         uint64_t render_start_timestamp;
         GET_TIME(ts, render_start_timestamp);
@@ -547,7 +564,6 @@ int main() {
             newImage.create(width, height, sf::Color::Transparent);
         }
 
-        timestamp = temp_timestamp;
         // Get the position of the cursor relative to the window
         sf::Vector2i mousePosition = sf::Mouse::getPosition(window);
 
@@ -616,32 +632,4 @@ int main() {
     window.close();
 
     return 0;
-}
-
-void
-readInput(const int width, void *receiver, const sub_image_stats *stat_array, int64_t timestamp, sf::Image &newImage,
-          std::unordered_set<uint32_t> &modified_ctus, sub_image &current_cu, int64_t &temp_timestamp) {
-    for(;;) {
-        while ((current_cu.stats.timestamp - 33'000'000) - timestamp < 33'000'000) {
-            current_cu = readOneCU(receiver);
-            temp_timestamp = current_cu.stats.timestamp;
-            // zmq_recv(receiver, &temp_timestamp, 8, 0);
-
-            for (int y = current_cu.rect.top; y < current_cu.rect.top + current_cu.rect.height - 1; y += 4) {
-                for (int x = current_cu.rect.left; x < current_cu.rect.left + current_cu.rect.width - 1; x += 4) {
-                    int index = (y / 4) * (width / 4) + (x / 4);
-                    memcpy((void *) &stat_array[index], &current_cu.stats, sizeof(current_cu.stats));
-                    break;
-                }
-                break;
-            }
-            modified_ctus.insert(((current_cu.stats.y / 64) << 16) | (current_cu.stats.x / 64));
-
-            sf::Image cuImage;
-            cuImage.create(current_cu.stats.width, current_cu.stats.height, current_cu.image);
-
-            newImage.copy(cuImage, current_cu.stats.x, current_cu.stats.y);
-        }
-        timestamp = temp_timestamp;
-    }
 }
