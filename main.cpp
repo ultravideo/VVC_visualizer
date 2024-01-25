@@ -2,6 +2,7 @@
 #include <iostream>
 #include <cstring>
 #include <thread>
+#include <atomic>
 
 #include <zmq.h>
 #include <SFML/Graphics.hpp>
@@ -31,13 +32,34 @@ struct func_parameters {
 };
 
 
-void readInput(const int width, void *receiver, const sub_image_stats *stat_array, sf::Image &newImage,
-          std::unordered_set<uint32_t> &modified_ctus) {
+struct renderFrameData {
+    const sub_image_stats *stat_array;
+    sf::Image *newImage;
+    std::unordered_set<uint32_t> *modified_ctus;
+};
+
+#define MAX_FRAME_COUNT 8
+std::atomic_uint32_t frame_in_index = 0;
+std::atomic_uint32_t frame_out_index = 0;
+
+
+void readInput(const int width, const int height,  void *receiver, std::vector<renderFrameData> &renderFrameDataVector) {
     sub_image current_cu;
     current_cu.stats.timestamp = 0;
     int64_t timestamp = 0;
+    bool reset = false;
     for(;;) {
         int64_t temp_timestamp = current_cu.stats.timestamp;
+        renderFrameData &currentRenderFrameData = renderFrameDataVector.at(frame_out_index);
+        if(reset) {
+            currentRenderFrameData.modified_ctus->clear();
+            currentRenderFrameData.newImage->create(width, height, sf::Color::Transparent);
+            memcpy((void *) currentRenderFrameData.stat_array,
+                   renderFrameDataVector.at((frame_out_index - 1) & (MAX_FRAME_COUNT - 1)).stat_array,
+                   sizeof(sub_image_stats) * (width / 4) * (height / 4));
+        }
+        reset = true;
+
         while ((current_cu.stats.timestamp - 33'000'000) - timestamp < 33'000'000) {
             current_cu = readOneCU(receiver);
             temp_timestamp = current_cu.stats.timestamp;
@@ -45,26 +67,31 @@ void readInput(const int width, void *receiver, const sub_image_stats *stat_arra
             for (int y = current_cu.rect.top; y < current_cu.rect.top + current_cu.rect.height - 1; y += 4) {
                 for (int x = current_cu.rect.left; x < current_cu.rect.left + current_cu.rect.width - 1; x += 4) {
                     int index = (y / 4) * (width / 4) + (x / 4);
-                    memcpy((void *) &stat_array[index], &current_cu.stats, sizeof(current_cu.stats));
+                    memcpy((void *) &currentRenderFrameData.stat_array[index], &current_cu.stats, sizeof(current_cu.stats));
                     break;
                 }
                 break;
             }
-            modified_ctus.insert(((current_cu.stats.y / 64) << 16) | (current_cu.stats.x / 64));
+            currentRenderFrameData.modified_ctus->insert(((current_cu.stats.y / 64) << 16) | (current_cu.stats.x / 64));
 
             sf::Image cuImage;
             cuImage.create(current_cu.stats.width, current_cu.stats.height, current_cu.image);
 
-            newImage.copy(cuImage, current_cu.stats.x, current_cu.stats.y);
+            currentRenderFrameData.newImage->copy(cuImage, current_cu.stats.x, current_cu.stats.y);
         }
         timestamp = temp_timestamp;
+
+        frame_out_index.fetch_add(1);
+        frame_out_index.fetch_and(MAX_FRAME_COUNT - 1);
+        // In case we have the same frame in and out index we just write on the same frame on the next loop
+        if(frame_out_index == frame_in_index) {
+            frame_out_index.fetch_sub(1);
+            frame_out_index.fetch_and(MAX_FRAME_COUNT - 1);
+            reset = false;
+        }
     }
 }
 
-
-void
-readInput(const int width, void *receiver, const sub_image_stats *stat_array, sf::Image &newImage,
-          std::unordered_set<uint32_t> &modified_ctus);
 
 void draw_cu(void *data, const cu_loc_t *const cuLoc, const sub_image_stats *const current_cu) {
     func_parameters *params = (func_parameters *) data;
@@ -346,7 +373,7 @@ drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imageText
 void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeRenderTexture,
                    const sub_image_stats *stat_array, sf::RenderWindow &window, const config &cfg,
                    float &previous_scale, const sf::Color *const colors, const float scaleX,
-                   RenderBufferManager &renderBufferManager, const std::unordered_set<uint32_t> &modified_ctus,
+                   RenderBufferManager &renderBufferManager, const std::unordered_set<uint32_t> * const modified_ctus,
                    bool setting_changed) {
     if (!cfg.show_grid && !cfg.show_intra && !cfg.show_transform) {
         return;
@@ -378,7 +405,7 @@ void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeR
     // cuEdgeRenderTexture.clear(sf::Color::Transparent);
     if (!cfg.paused) {
         if (!setting_changed) {
-            for (uint32_t tempx: modified_ctus) {
+            for (uint32_t tempx: *modified_ctus) {
                 uint32_t x = tempx & 0xFFFFu;
                 uint32_t y = tempx >> 16u;
                 cu_loc_t cuLoc;
@@ -460,8 +487,6 @@ int main() {
     }
     // zmq_recv(receiver, NULL, 0, 0);
 
-    sub_image_stats *stat_array = new sub_image_stats[(width / 4) * (height / 4)];
-
     sf::RenderTexture zoomOverlayTexture;
     zoomOverlayTexture.create(64 * 4 + 4 * 64, 64 * 4 + 4 * 64);
 
@@ -530,23 +555,32 @@ int main() {
     config cfg;
     float previous_scale = 1;
     bool setting_changed = false;
-    sf::Image newImage;
-    newImage.create(width, height, sf::Color::Transparent);
 
-    std::unordered_set<uint32_t> modified_ctus{};
+    std::vector<renderFrameData> renderFrameDataVector;
+    renderFrameDataVector.reserve(MAX_FRAME_COUNT);
+    for (int i = 0; i < MAX_FRAME_COUNT; ++i) {
+        renderFrameDataVector.emplace_back();
+        renderFrameDataVector.at(i).stat_array = new sub_image_stats[(width / 4) * (height / 4)];
+        renderFrameDataVector.at(i).modified_ctus = new std::unordered_set<uint32_t>();
+        renderFrameDataVector.at(i).newImage = new sf::Image();
+        renderFrameDataVector.at(i).newImage->create(width, height, sf::Color::Transparent);
+    }
+
     std::thread reader_thread(
             readInput,
             width,
+            height,
             receiver,
-            stat_array,
-            std::ref(newImage),
-            std::ref(modified_ctus));
+            std::ref(renderFrameDataVector));
+    //readInput(width, height, receiver, renderFrameDataVector);
 
     while (cfg.running) {
-        if (data_file.eof() || !data_file.good()) {
-            break;
+        while (frame_out_index == frame_in_index) {
+            std::chrono::milliseconds timespan(1);
+            std::this_thread::sleep_for(timespan);
         }
-        // Read one CU from the data file
+
+        renderFrameData &currentFrameData = renderFrameDataVector.at(frame_in_index);
 
         uint64_t render_start_timestamp;
         GET_TIME(ts, render_start_timestamp);
@@ -558,10 +592,10 @@ int main() {
 
         if (!cfg.paused) {
             sf::Texture newTexture;
-            newTexture.loadFromImage(newImage);
+            newTexture.loadFromImage(*currentFrameData.newImage);
             sf::Sprite newSprite(newTexture);
             imageTexture.draw(newSprite);
-            newImage.create(width, height, sf::Color::Transparent);
+            // newImage.create(width, height, sf::Color::Transparent);
         }
 
         // Get the position of the cursor relative to the window
@@ -587,12 +621,11 @@ int main() {
         sprite.setScale(scaleX, scaleY);
 
         window.draw(sprite);
-        visualizeInfo(width, height, cuEdgeRenderTexture, stat_array, window, cfg, previous_scale,
-                      colors, scaleX, renderBufferManager, modified_ctus, setting_changed);
-        modified_ctus.clear();
+        visualizeInfo(width, height, cuEdgeRenderTexture, currentFrameData.stat_array, window, cfg, previous_scale,
+                      colors, scaleX, renderBufferManager, currentFrameData.modified_ctus, setting_changed);
 
         if (cfg.show_zoom) {
-            drawZoomWindow(colors, imageTexture, width, height, stat_array, zoomOverlayTexture, window,
+            drawZoomWindow(colors, imageTexture, width, height, currentFrameData.stat_array, zoomOverlayTexture, window,
                            previous_mouse_position,
                            zoomImage, mousePosition, scaleX, scaleY);
 
@@ -622,8 +655,15 @@ int main() {
         while (window.pollEvent(event)) {
             setting_changed |= eventHandler.handle(event, cfg, window);
         }
+        frame_in_index.fetch_add(1);
+        frame_in_index.fetch_and(MAX_FRAME_COUNT - 1);
     }
     reader_thread.join();
+    for(int i = 0; i < MAX_FRAME_COUNT; ++i) {
+        delete[] renderFrameDataVector.at(i).stat_array;
+        delete renderFrameDataVector.at(i).modified_ctus;
+        delete renderFrameDataVector.at(i).newImage;
+    }
     zmq_close(control_socket);
     zmq_close(receiver);
     zmq_ctx_destroy(context);
