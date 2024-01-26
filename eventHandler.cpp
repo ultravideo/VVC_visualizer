@@ -8,6 +8,13 @@
 #include "zmq.h"
 #include "util.h"
 
+EventHandler::EventHandler(uint32_t width, uint32_t height, void* socket) :
+  width(width),
+  height(height),
+  control_socket(socket) {
+  QueryPerformanceFrequency(&Frequency);
+}
+
 bool EventHandler::handle(sf::Event &event, config &cfg, sf::RenderWindow &window) {
     if (event.type == sf::Event::Closed) {
         window.close();

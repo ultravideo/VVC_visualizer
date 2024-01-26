@@ -68,9 +68,9 @@ void readInput(const int width, const int height,  void *receiver, std::vector<r
                 for (int x = current_cu.rect.left; x < current_cu.rect.left + current_cu.rect.width - 1; x += 4) {
                     int index = (y / 4) * (width / 4) + (x / 4);
                     memcpy((void *) &currentRenderFrameData.stat_array[index], &current_cu.stats, sizeof(current_cu.stats));
-                    break;
+                    
                 }
-                break;
+                
             }
             currentRenderFrameData.modified_ctus->insert(((current_cu.stats.y / 64) << 16) | (current_cu.stats.x / 64));
 
@@ -141,7 +141,7 @@ void drawIntraModes(void *data, const cu_loc_t *const cuLoc, const sub_image_sta
             const int32_t mode_disp = vertical_mode ? pred_mode - 50 : -((int32_t) pred_mode - 18);
             const int32_t sample_disp = modedisp2sampledisp[abs(mode_disp)];
             double angle = (sample_disp / 32. * M_PI) / 4.;
-            if (vertical_mode) {
+            if (!vertical_mode) {
                 if (mode_disp > 0) {
                     angle = M_PI - angle;
                 } else {
@@ -490,12 +490,6 @@ int main() {
     sf::RenderTexture zoomOverlayTexture;
     zoomOverlayTexture.create(64 * 4 + 4 * 64, 64 * 4 + 4 * 64);
 
-    std::ifstream data_file("data4.dat", std::ios::binary);
-    // check if the file is open
-    if (!data_file.is_open()) {
-        std::cout << "Could not open the file" << std::endl;
-        return 1;
-    }
 
     sf::Font font;
     if (!font.loadFromFile(
@@ -565,6 +559,9 @@ int main() {
         renderFrameDataVector.at(i).newImage = new sf::Image();
         renderFrameDataVector.at(i).newImage->create(width, height, sf::Color::Transparent);
     }
+#ifdef _MSC_VER
+    QueryPerformanceFrequency(&Frequency);
+#endif
 
     std::thread reader_thread(
             readInput,

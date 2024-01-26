@@ -6,14 +6,15 @@
 #define VISUALIZER_UTIL_H
 
 #ifdef _MSC_VER
+#include <windows.h>
 typedef LARGE_INTEGER TimeStamp;
-static LargeInteger Frequency;
-QueryPerformanceFrequency(&Frequency);
+static LARGE_INTEGER Frequency;
+//QueryPerformanceFrequency(&Frequency);
 
 #define GET_TIME(ts, rs) \
-    static TimeStamp StartingTime;
-    QueryPerformanceCounter(&StartingTime);
-    rs = StartingTime.QuadPart * 1000000000 / Frequency.QuadPart;
+    do {static TimeStamp StartingTime; \
+QueryPerformanceCounter(&StartingTime); \
+rs = StartingTime.QuadPart * 1000000000 / Frequency.QuadPart; } while(0)
 #else
 typedef struct timespec TimeStamp;
 #define GET_TIME(ts, rs) \
