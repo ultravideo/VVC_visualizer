@@ -3,7 +3,7 @@ project(visualizer)
 
 set(CMAKE_CXX_STANDARD 17)
 
-find_package(ZeroMQ REQUIRED)
+find_package(ZeroMQ REQUIRED SHARED)
 
 find_package(SFML 2.5 COMPONENTS system window graphics QUIET)
 if(NOT SFML_FOUND)
@@ -21,4 +21,5 @@ add_executable(visualizer main.cpp cu.cpp
         eventHandler.h
         RenderBufferManager.cpp
         RenderBufferManager.h)
-target_link_libraries(visualizer sfml-system sfml-window sfml-graphics zmq)
+target_include_directories(visualizer PUBLIC "G:/Local/sainio/Documents/libzmq/out/install/include")
+target_link_libraries(visualizer sfml-system sfml-window sfml-graphics "G:/Local/sainio/Documents/libzmq/out/install/lib/libzmq-mt-4_3_6.lib")
