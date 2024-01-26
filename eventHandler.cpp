@@ -12,7 +12,9 @@ EventHandler::EventHandler(uint32_t width, uint32_t height, void* socket) :
   width(width),
   height(height),
   control_socket(socket) {
+#ifdef _MSC_VER
   QueryPerformanceFrequency(&Frequency);
+#endif
 }
 
 bool EventHandler::handle(sf::Event &event, config &cfg, sf::RenderWindow &window) {
