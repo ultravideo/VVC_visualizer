@@ -425,7 +425,7 @@ void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeR
                    float &previous_scale, const sf::Color *const colors, const float scaleX,
                    RenderBufferManager &renderBufferManager, const std::unordered_set<uint32_t> * const modified_ctus,
                    bool setting_changed, const float *max_value) {
-    if (!cfg.show_grid && !cfg.show_intra && !cfg.show_transform && !cfg.show_isp) {
+    if (!cfg.show_grid && !cfg.show_intra && !cfg.show_transform && !cfg.show_isp && !cfg.show_heatmap) {
         return;
     }
 
