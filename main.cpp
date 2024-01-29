@@ -73,7 +73,11 @@ void getMaxCost(void* params, const cu_loc_t *const cuLoc, const sub_image_stats
 }
 
 
-void readInput(const int width, const int height,  void *receiver, std::vector<renderFrameData> &renderFrameDataVector) {
+void readInput(const int width,
+               const int height,
+               void *receiver,
+               std::vector<renderFrameData> &renderFrameDataVector,
+               const config &cfg) {
     sub_image current_cu;
     current_cu.stats.timestamp = 0;
     int64_t timestamp = 0;
@@ -82,7 +86,7 @@ void readInput(const int width, const int height,  void *receiver, std::vector<r
     int num_ctus = widthInCtus * ceil_div(height, 64);
     uint8_t * complete_ctus = new uint8_t[num_ctus];
     memset(complete_ctus, 0, num_ctus);
-    for(;;) {
+    while (cfg.running) {
         int64_t temp_timestamp = current_cu.stats.timestamp;
         renderFrameData &currentRenderFrameData = renderFrameDataVector.at(frame_out_index);
         if(reset) {
@@ -140,12 +144,17 @@ max_func_params max_params = {&max_values, complete_ctus, (uint32_t)widthInCtus,
 
         timestamp = temp_timestamp;
 
-        frame_out_index.fetch_add(1);
-        frame_out_index.fetch_and(MAX_FRAME_COUNT - 1);
-        // In case we have the same frame in and out index we just write on the same frame on the next loop
-        if(frame_out_index == frame_in_index) {
-            frame_out_index.fetch_sub(1);
+        if(!cfg.paused) {
+            frame_out_index.fetch_add(1);
             frame_out_index.fetch_and(MAX_FRAME_COUNT - 1);
+            // In case we have the same frame in and out index we just write on the same frame on the next loop
+            if (frame_out_index == frame_in_index) {
+                frame_out_index.fetch_sub(1);
+                frame_out_index.fetch_and(MAX_FRAME_COUNT - 1);
+                reset = false;
+            }
+        }
+        else {
             reset = false;
         }
     }
@@ -661,14 +670,12 @@ int main() {
             width,
             height,
             receiver,
-            std::ref(renderFrameDataVector));
+            std::ref(renderFrameDataVector),
+            std::ref(cfg));
     //readInput(width, height, receiver, renderFrameDataVector);
 
     while (cfg.running) {
-        while (frame_out_index == frame_in_index) {
-            std::chrono::milliseconds timespan(1);
-            std::this_thread::sleep_for(timespan);
-        }
+        bool increment_frame = frame_out_index != frame_in_index;
 
         renderFrameData &currentFrameData = renderFrameDataVector.at(frame_in_index);
 
@@ -745,8 +752,10 @@ int main() {
         while (window.pollEvent(event)) {
             setting_changed |= eventHandler.handle(event, cfg, window);
         }
-        frame_in_index.fetch_add(1);
-        frame_in_index.fetch_and(MAX_FRAME_COUNT - 1);
+        if(increment_frame) {
+            frame_in_index.fetch_add(1);
+            frame_in_index.fetch_and(MAX_FRAME_COUNT - 1);
+        }
     }
     reader_thread.join();
     for(int i = 0; i < MAX_FRAME_COUNT; ++i) {
