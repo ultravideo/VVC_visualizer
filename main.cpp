@@ -30,12 +30,21 @@ struct func_parameters {
     uint32_t top_left_y;
     float scale;
 };
+struct heatmap_parameters {
+    sf::RenderTexture *edgeImage;
+    uint32_t top_left_x;
+    uint32_t top_left_y;
+    float scale;
+    float max_value;
+    float min_value;
+};
 
 
 struct renderFrameData {
     const sub_image_stats *stat_array;
     sf::Image *newImage;
     std::unordered_set<uint32_t> *modified_ctus;
+    float max_values[6];
 };
 
 #define MAX_FRAME_COUNT 8
@@ -57,6 +66,16 @@ void readInput(const int width, const int height,  void *receiver, std::vector<r
             memcpy((void *) currentRenderFrameData.stat_array,
                    renderFrameDataVector.at((frame_out_index - 1) & (MAX_FRAME_COUNT - 1)).stat_array,
                    sizeof(sub_image_stats) * (width / 4) * (height / 4));
+            memset((void *) currentRenderFrameData.max_values, 0, sizeof(float) * 6);
+            for(int i = 0; i < width * height / 16; i++){
+                if(currentRenderFrameData.stat_array[i].height == 0) continue;
+                currentRenderFrameData.max_values[0] = std::max(currentRenderFrameData.max_values[0], currentRenderFrameData.stat_array[i].cost);
+                currentRenderFrameData.max_values[1] = std::max(currentRenderFrameData.max_values[1], currentRenderFrameData.stat_array[i].cost / currentRenderFrameData.stat_array[i].width / currentRenderFrameData.stat_array[i].height);
+                currentRenderFrameData.max_values[2] = std::max(currentRenderFrameData.max_values[2], currentRenderFrameData.stat_array[i].dist);
+                currentRenderFrameData.max_values[3] = std::max(currentRenderFrameData.max_values[3], currentRenderFrameData.stat_array[i].dist / currentRenderFrameData.stat_array[i].width / currentRenderFrameData.stat_array[i].height);
+                currentRenderFrameData.max_values[4] = std::max(currentRenderFrameData.max_values[4], currentRenderFrameData.stat_array[i].bits);
+                currentRenderFrameData.max_values[5] = std::max(currentRenderFrameData.max_values[5], currentRenderFrameData.stat_array[i].bits / currentRenderFrameData.stat_array[i].width / currentRenderFrameData.stat_array[i].height);
+            }
         }
         reset = true;
 
@@ -72,6 +91,13 @@ void readInput(const int width, const int height,  void *receiver, std::vector<r
                 }
                 
             }
+            currentRenderFrameData.max_values[0] = std::max(currentRenderFrameData.max_values[0], current_cu.stats.cost);
+            currentRenderFrameData.max_values[1] = std::max(currentRenderFrameData.max_values[1], current_cu.stats.cost / current_cu.stats.width / current_cu.stats.height);
+            currentRenderFrameData.max_values[2] = std::max(currentRenderFrameData.max_values[2], current_cu.stats.dist);
+            currentRenderFrameData.max_values[3] = std::max(currentRenderFrameData.max_values[3], current_cu.stats.dist / current_cu.stats.width / current_cu.stats.height);
+            currentRenderFrameData.max_values[4] = std::max(currentRenderFrameData.max_values[4], current_cu.stats.bits);
+            currentRenderFrameData.max_values[5] = std::max(currentRenderFrameData.max_values[5], current_cu.stats.bits / current_cu.stats.width / current_cu.stats.height);
+
             currentRenderFrameData.modified_ctus->insert(((current_cu.stats.y / 64) << 16) | (current_cu.stats.x / 64));
 
             sf::Image cuImage;
@@ -90,6 +116,30 @@ void readInput(const int width, const int height,  void *receiver, std::vector<r
             reset = false;
         }
     }
+}
+
+void draw_colormap(void *data, const cu_loc_t *const cuLoc, const sub_image_stats *const current_cu) {
+    static const uint8_t r[] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,5,9,13,17,21,25,29,33,37,41,45,49,53,57,61,65,69,73,77,81,85,89,93,97,101,105,109,113,117,121,125,129,133,137,141,145,149,153,157,161,165,169,173,177,181,185,189,193,197,201,205,209,213,217,221,225,229,233,237,241,245,249,253,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,251,247,243,239,235,231,227,223,219,215,211,207,203,199,195,191,187,183,179,175,171,167,163,159,155,151,147,143,139,135,131,127};
+    static const uint8_t g[] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,8,12,16,20,24,28,32,36,40,44,48,52,56,60,64,68,72,76,80,84,88,92,96,100,104,108,112,116,120,124,128,132,136,140,144,148,152,156,160,164,168,172,176,180,184,188,192,196,200,204,208,212,216,220,224,228,232,236,240,244,248,252,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,252,248,244,240,236,232,228,224,220,216,212,208,204,200,196,192,188,184,180,176,172,168,164,160,156,152,148,144,140,136,132,128,124,120,116,112,108,104,100,96,92,88,84,80,76,72,68,64,60,56,52,48,44,40,36,32,28,24,20,16,12,8,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+    static const uint8_t b[] = {127,131,135,139,143,147,151,155,159,163,167,171,175,179,183,187,191,195,199,203,207,211,215,219,223,227,231,235,239,243,247,251,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,253,249,245,241,237,233,229,225,221,217,213,209,205,201,197,193,189,185,181,177,173,169,165,161,157,153,149,145,141,137,133,129,125,121,117,113,109,105,101,97,93,89,85,81,77,73,69,65,61,57,53,49,45,41,37,33,29,25,21,17,13,9,5,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+
+    heatmap_parameters *params = (heatmap_parameters *) data;
+    sf::RenderTexture *edgeImage = params->edgeImage;
+
+    const float value = current_cu->cost / current_cu->width / current_cu->height;
+    const float max_value = params->max_value;
+    const float min_value = params->min_value;
+    const float range = max_value - min_value;
+    const float normalized_value = (value - min_value) / range;
+    const uint8_t index = normalized_value * 255;
+    const sf::Color color = sf::Color(r[index], g[index], b[index], 128);
+
+    // Fill the area of the CU with the color
+    sf::RectangleShape rectangle(sf::Vector2f(current_cu->width * params->scale, current_cu->height * params->scale));
+    rectangle.setPosition((current_cu->x - params->top_left_x) * params->scale,
+                          (current_cu->y - params->top_left_y) * params->scale);
+    rectangle.setFillColor(color);
+    edgeImage->draw(rectangle);
 }
 
 
@@ -374,7 +424,7 @@ void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeR
                    const sub_image_stats *stat_array, sf::RenderWindow &window, const config &cfg,
                    float &previous_scale, const sf::Color *const colors, const float scaleX,
                    RenderBufferManager &renderBufferManager, const std::unordered_set<uint32_t> * const modified_ctus,
-                   bool setting_changed) {
+                   bool setting_changed, const float *max_value) {
     if (!cfg.show_grid && !cfg.show_intra && !cfg.show_transform && !cfg.show_isp) {
         return;
     }
@@ -386,6 +436,11 @@ void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeR
     std::vector<std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> > funcs;
     std::vector<void *> data;
     func_parameters params = {&cuEdgeRenderTexture, colors, 0, 0, scaleX};
+    heatmap_parameters heatmap_params = {&cuEdgeRenderTexture, 0, 0, scaleX, max_value[1], 0};
+    if (cfg.show_heatmap) {
+        funcs.emplace_back(draw_colormap);
+        data.push_back((void *) &heatmap_params);
+    }
     if (cfg.show_grid) {
         funcs.emplace_back(draw_cu);
         data.push_back((void *) &params);
@@ -412,6 +467,9 @@ void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeR
                 params.top_left_x = x * 64;
                 params.top_left_y = y * 64;
                 params.edgeImage = renderBufferManager.get_buffer(x * 64, y * 64);
+                heatmap_params.edgeImage = params.edgeImage;
+                heatmap_params.top_left_x = params.top_left_x;
+                heatmap_params.top_left_y = params.top_left_y;
                 uvg_cu_loc_ctor(&cuLoc, x * 64, y * 64, 64, 64);
                 walk_tree(stat_array, &cuLoc, 0, width, height, funcs, data);
             }
@@ -514,11 +572,12 @@ int main() {
     helpText.setString(
             "Visualizer controls:\n"
             "  F: Toggle fullscreen\n"
-            "  H: Toggle help (this)\n"
+            "  F1: Toggle help (this)\n"
             "  G: Toggle cu grid\n"
             "  I: Toggle intra modes\n"
             "  W: Toggle transforms\n"
             "  E: Toggle ISP\n"
+            "  H: Toggle Heatmap\n"
             "  Space: (Un)pause\n"
             "  Z: Toggle zoom window\n"
             "  D: Toggle debug\n"
@@ -619,7 +678,7 @@ int main() {
 
         window.draw(sprite);
         visualizeInfo(width, height, cuEdgeRenderTexture, currentFrameData.stat_array, window, cfg, previous_scale,
-                      colors, scaleX, renderBufferManager, currentFrameData.modified_ctus, setting_changed);
+                      colors, scaleX, renderBufferManager, currentFrameData.modified_ctus, setting_changed, currentFrameData.max_values);
 
         if (cfg.show_zoom) {
             drawZoomWindow(colors, imageTexture, width, height, currentFrameData.stat_array, zoomOverlayTexture, window,

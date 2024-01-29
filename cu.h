@@ -32,6 +32,10 @@ struct sub_image_stats {
 
     uint8_t lfnst;
     uint8_t tr_idx;
+
+    float cost;
+    float bits;
+    float dist;
 }
 #ifdef _MSC_VER
 ;

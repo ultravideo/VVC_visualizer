@@ -46,11 +46,15 @@ bool EventHandler::handle(sf::Event &event, config &cfg, sf::RenderWindow &windo
         if (event.key.code == sf::Keyboard::D) {
             cfg.show_debug = !cfg.show_debug;
         }
-        if (event.key.code == sf::Keyboard::H || event.key.code == sf::Keyboard::F1) {
+        if (event.key.code == sf::Keyboard::F1) {
             cfg.show_help = !cfg.show_help;
         }
         if (event.key.code == sf::Keyboard::Q) {
             cfg.show_qp = !cfg.show_qp;
+            return true;
+        }
+        if (event.key.code == sf::Keyboard::H) {
+            cfg.show_heatmap = !cfg.show_heatmap;
             return true;
         }
         if (event.key.code == sf::Keyboard::W) {
