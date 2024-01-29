@@ -51,12 +51,37 @@ struct renderFrameData {
 std::atomic_uint32_t frame_in_index = 0;
 std::atomic_uint32_t frame_out_index = 0;
 
+struct max_func_params {
+    std::vector<float> *max_values;
+    uint8_t *complete_ctus;
+    uint32_t widthInCtus;
+    uint32_t widthInCus;
+};
+
+
+void getMaxCost(void* params, const cu_loc_t *const cuLoc, const sub_image_stats *const current_cu) {
+    max_func_params *local_params = (max_func_params *) params;
+    const uint32_t ctu_x = cuLoc->x / 64;
+    const uint32_t ctu_y = cuLoc->y / 64;
+    if(local_params->complete_ctus[ctu_y * local_params->widthInCtus + ctu_x] == 0) {
+        return;
+    }
+    int index = (cuLoc->y / 4) * (local_params->widthInCus) + (cuLoc->x / 4);
+    if (current_cu->height == 0) return;
+    (*local_params->max_values).emplace_back( current_cu->cost);
+
+}
+
 
 void readInput(const int width, const int height,  void *receiver, std::vector<renderFrameData> &renderFrameDataVector) {
     sub_image current_cu;
     current_cu.stats.timestamp = 0;
     int64_t timestamp = 0;
     bool reset = false;
+    const int widthInCtus = ceil_div(width, 64);
+    int num_ctus = widthInCtus * ceil_div(height, 64);
+    uint8_t * complete_ctus = new uint8_t[num_ctus];
+    memset(complete_ctus, 0, num_ctus);
     for(;;) {
         int64_t temp_timestamp = current_cu.stats.timestamp;
         renderFrameData &currentRenderFrameData = renderFrameDataVector.at(frame_out_index);
@@ -67,15 +92,6 @@ void readInput(const int width, const int height,  void *receiver, std::vector<r
                    renderFrameDataVector.at((frame_out_index - 1) & (MAX_FRAME_COUNT - 1)).stat_array,
                    sizeof(sub_image_stats) * (width / 4) * (height / 4));
             memset((void *) currentRenderFrameData.max_values, 0, sizeof(float) * 6);
-            for(int i = 0; i < width * height / 16; i++){
-                if(currentRenderFrameData.stat_array[i].height == 0) continue;
-                currentRenderFrameData.max_values[0] = std::max(currentRenderFrameData.max_values[0], currentRenderFrameData.stat_array[i].cost);
-                currentRenderFrameData.max_values[1] = std::max(currentRenderFrameData.max_values[1], currentRenderFrameData.stat_array[i].cost / currentRenderFrameData.stat_array[i].width / currentRenderFrameData.stat_array[i].height);
-                currentRenderFrameData.max_values[2] = std::max(currentRenderFrameData.max_values[2], currentRenderFrameData.stat_array[i].dist);
-                currentRenderFrameData.max_values[3] = std::max(currentRenderFrameData.max_values[3], currentRenderFrameData.stat_array[i].dist / currentRenderFrameData.stat_array[i].width / currentRenderFrameData.stat_array[i].height);
-                currentRenderFrameData.max_values[4] = std::max(currentRenderFrameData.max_values[4], currentRenderFrameData.stat_array[i].bits);
-                currentRenderFrameData.max_values[5] = std::max(currentRenderFrameData.max_values[5], currentRenderFrameData.stat_array[i].bits / currentRenderFrameData.stat_array[i].width / currentRenderFrameData.stat_array[i].height);
-            }
         }
         reset = true;
 
@@ -86,17 +102,15 @@ void readInput(const int width, const int height,  void *receiver, std::vector<r
             for (int y = current_cu.rect.top; y < current_cu.rect.top + current_cu.rect.height - 1; y += 4) {
                 for (int x = current_cu.rect.left; x < current_cu.rect.left + current_cu.rect.width - 1; x += 4) {
                     int index = (y / 4) * (width / 4) + (x / 4);
-                    memcpy((void *) &currentRenderFrameData.stat_array[index], &current_cu.stats, sizeof(current_cu.stats));
-                    
-                }
-                
+                    memcpy((void *) &currentRenderFrameData.stat_array[index], &current_cu.stats, sizeof(current_cu.stats));                    
+                }                
             }
-            currentRenderFrameData.max_values[0] = std::max(currentRenderFrameData.max_values[0], current_cu.stats.cost);
-            currentRenderFrameData.max_values[1] = std::max(currentRenderFrameData.max_values[1], current_cu.stats.cost / current_cu.stats.width / current_cu.stats.height);
-            currentRenderFrameData.max_values[2] = std::max(currentRenderFrameData.max_values[2], current_cu.stats.dist);
-            currentRenderFrameData.max_values[3] = std::max(currentRenderFrameData.max_values[3], current_cu.stats.dist / current_cu.stats.width / current_cu.stats.height);
-            currentRenderFrameData.max_values[4] = std::max(currentRenderFrameData.max_values[4], current_cu.stats.bits);
-            currentRenderFrameData.max_values[5] = std::max(currentRenderFrameData.max_values[5], current_cu.stats.bits / current_cu.stats.width / current_cu.stats.height);
+            int ctu_x = current_cu.stats.x / 64;
+            int ctu_y = current_cu.stats.y / 64;
+            complete_ctus[ctu_y * widthInCtus + ctu_x] = 0;
+            if(ctu_x > 0) {
+                complete_ctus[ctu_y * widthInCtus + ctu_x - 1] = 1;
+            }
 
             currentRenderFrameData.modified_ctus->insert(((current_cu.stats.y / 64) << 16) | (current_cu.stats.x / 64));
 
@@ -105,6 +119,25 @@ void readInput(const int width, const int height,  void *receiver, std::vector<r
 
             currentRenderFrameData.newImage->copy(cuImage, current_cu.stats.x, current_cu.stats.y);
         }
+
+        std::vector<float> max_values;
+max_func_params max_params = {&max_values, complete_ctus, (uint32_t)widthInCtus, (uint32_t)width / 4};
+        std::vector<void *> data;
+        data.emplace_back(&max_params);
+        std::vector<std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> > funcs;
+        funcs.emplace_back(getMaxCost);
+        for(int y = 0; y < height; y += 64) {
+            for (int x = 0; x < width; x += 64) {
+                cu_loc_t cu_loc;
+                uvg_cu_loc_ctor(&cu_loc, x, y, 64, 64);
+                walk_tree(currentRenderFrameData.stat_array, &cu_loc, 0, width, height, funcs, data);
+            }
+        }
+        if(max_values.size() > 0) {
+            std::sort(max_values.begin(), max_values.end());
+            currentRenderFrameData.max_values[0] = max_values.at(max_values.size() * 0.98);
+        }
+
         timestamp = temp_timestamp;
 
         frame_out_index.fetch_add(1);
@@ -116,6 +149,7 @@ void readInput(const int width, const int height,  void *receiver, std::vector<r
             reset = false;
         }
     }
+    delete[] complete_ctus;
 }
 
 void draw_colormap(void *data, const cu_loc_t *const cuLoc, const sub_image_stats *const current_cu) {
@@ -126,11 +160,11 @@ void draw_colormap(void *data, const cu_loc_t *const cuLoc, const sub_image_stat
     heatmap_parameters *params = (heatmap_parameters *) data;
     sf::RenderTexture *edgeImage = params->edgeImage;
 
-    const float value = current_cu->cost / current_cu->width / current_cu->height;
+    const float value = current_cu->cost;
     const float max_value = params->max_value;
     const float min_value = params->min_value;
     const float range = max_value - min_value;
-    const float normalized_value = (value - min_value) / range;
+    const float normalized_value = clamp((value - min_value) / range, 0.0f, 1.0f);
     const uint8_t index = normalized_value * 255;
     const sf::Color color = sf::Color(r[index], g[index], b[index], 128);
 
@@ -436,7 +470,7 @@ void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeR
     std::vector<std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> > funcs;
     std::vector<void *> data;
     func_parameters params = {&cuEdgeRenderTexture, colors, 0, 0, scaleX};
-    heatmap_parameters heatmap_params = {&cuEdgeRenderTexture, 0, 0, scaleX, max_value[1], 0};
+    heatmap_parameters heatmap_params = {&cuEdgeRenderTexture, 0, 0, scaleX, max_value[0], 0};
     if (cfg.show_heatmap) {
         funcs.emplace_back(draw_colormap);
         data.push_back((void *) &heatmap_params);
