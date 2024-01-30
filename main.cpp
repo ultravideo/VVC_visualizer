@@ -168,6 +168,9 @@ void draw_colormap(void *data, const cu_loc_t *const cuLoc, const sub_image_stat
 
     heatmap_parameters *params = (heatmap_parameters *) data;
     sf::RenderTexture *edgeImage = params->edgeImage;
+    if(cuLoc->x != current_cu->x || cuLoc->y != current_cu->y) {
+        return;
+    }
 
     const float value = current_cu->cost;
     const float max_value = params->max_value;
@@ -178,7 +181,7 @@ void draw_colormap(void *data, const cu_loc_t *const cuLoc, const sub_image_stat
     const sf::Color color = sf::Color(r[index], g[index], b[index], 128);
 
     // Fill the area of the CU with the color
-    sf::RectangleShape rectangle(sf::Vector2f(current_cu->width * params->scale, current_cu->height * params->scale));
+    sf::RectangleShape rectangle(sf::Vector2f(cuLoc->width * params->scale, cuLoc->height * params->scale));
     rectangle.setPosition((current_cu->x - params->top_left_x) * params->scale,
                           (current_cu->y - params->top_left_y) * params->scale);
     rectangle.setFillColor(color);
@@ -501,7 +504,7 @@ void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeR
         data.push_back((void *) &params);
     }
     // cuEdgeRenderTexture.clear(sf::Color::Transparent);
-    if (!cfg.paused) {
+    if (!cfg.paused || setting_changed) {
         if (!setting_changed) {
             for (uint32_t tempx: *modified_ctus) {
                 uint32_t x = tempx & 0xFFFFu;
@@ -675,8 +678,6 @@ int main() {
     //readInput(width, height, receiver, renderFrameDataVector);
 
     while (cfg.running) {
-        bool increment_frame = frame_out_index != frame_in_index;
-
         renderFrameData &currentFrameData = renderFrameDataVector.at(frame_in_index);
 
         uint64_t render_start_timestamp;
@@ -752,8 +753,10 @@ int main() {
         while (window.pollEvent(event)) {
             setting_changed |= eventHandler.handle(event, cfg, window);
         }
-        if(increment_frame) {
-            frame_in_index.fetch_add(1);
+        frame_in_index.fetch_add(1);
+        frame_in_index.fetch_and(MAX_FRAME_COUNT - 1);
+        if(frame_in_index == frame_out_index) {
+            frame_in_index.fetch_sub(1);
             frame_in_index.fetch_and(MAX_FRAME_COUNT - 1);
         }
     }
