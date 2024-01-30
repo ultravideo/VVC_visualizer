@@ -54,7 +54,7 @@ bool EventHandler::handle(sf::Event &event, config &cfg, sf::RenderWindow &windo
             return true;
         }
         if (event.key.code == sf::Keyboard::H) {
-            cfg.show_heatmap = !cfg.show_heatmap;
+            cfg.show_heatmap = (cfg.show_heatmap + 1) & 3;
             return true;
         }
         if (event.key.code == sf::Keyboard::W) {

@@ -11,7 +11,7 @@ struct config {
     bool show_intra;
     bool show_transform;
     bool show_isp;
-    bool show_heatmap;
+    uint8_t show_heatmap;
     bool fullscreen;
     bool show_debug;
     bool show_help;
@@ -25,7 +25,7 @@ struct config {
         show_intra = true;
         show_transform = true;
         show_isp = true;
-        show_heatmap = true;
+        show_heatmap = 1;
         fullscreen = false;
         show_debug = false;
         show_help = true;

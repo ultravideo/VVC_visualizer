@@ -37,6 +37,7 @@ struct heatmap_parameters {
     float scale;
     float max_value;
     float min_value;
+    uint8_t heatmap_type;
 };
 
 
@@ -52,24 +53,26 @@ std::atomic_uint32_t frame_in_index = 0;
 std::atomic_uint32_t frame_out_index = 0;
 
 struct max_func_params {
-    std::vector<float> *max_values;
+    std::vector<float> *max_costs;
+    std::vector<float> *max_distortion;
+    std::vector<float> *max_bits;
     uint8_t *complete_ctus;
     uint32_t widthInCtus;
     uint32_t widthInCus;
 };
 
 
-void getMaxCost(void* params, const cu_loc_t *const cuLoc, const sub_image_stats *const current_cu) {
+void getMaxCost(void *params, const cu_loc_t *const cuLoc, const sub_image_stats *const current_cu) {
     max_func_params *local_params = (max_func_params *) params;
     const uint32_t ctu_x = cuLoc->x / 64;
     const uint32_t ctu_y = cuLoc->y / 64;
-    if(local_params->complete_ctus[ctu_y * local_params->widthInCtus + ctu_x] == 0) {
+    if (local_params->complete_ctus[ctu_y * local_params->widthInCtus + ctu_x] == 0) {
         return;
     }
-    int index = (cuLoc->y / 4) * (local_params->widthInCus) + (cuLoc->x / 4);
     if (current_cu->height == 0) return;
-    (*local_params->max_values).emplace_back( current_cu->cost);
-
+    (*local_params->max_costs).emplace_back(current_cu->cost);
+    (*local_params->max_distortion).emplace_back(current_cu->dist);
+    (*local_params->max_bits).emplace_back(current_cu->bits);
 }
 
 
@@ -84,12 +87,12 @@ void readInput(const int width,
     bool reset = false;
     const int widthInCtus = ceil_div(width, 64);
     int num_ctus = widthInCtus * ceil_div(height, 64);
-    uint8_t * complete_ctus = new uint8_t[num_ctus];
+    uint8_t *complete_ctus = new uint8_t[num_ctus];
     memset(complete_ctus, 0, num_ctus);
     while (cfg.running) {
         int64_t temp_timestamp = current_cu.stats.timestamp;
         renderFrameData &currentRenderFrameData = renderFrameDataVector.at(frame_out_index);
-        if(reset) {
+        if (reset) {
             currentRenderFrameData.modified_ctus->clear();
             currentRenderFrameData.newImage->create(width, height, sf::Color::Transparent);
             memcpy((void *) currentRenderFrameData.stat_array,
@@ -106,13 +109,14 @@ void readInput(const int width,
             for (int y = current_cu.rect.top; y < current_cu.rect.top + current_cu.rect.height - 1; y += 4) {
                 for (int x = current_cu.rect.left; x < current_cu.rect.left + current_cu.rect.width - 1; x += 4) {
                     int index = (y / 4) * (width / 4) + (x / 4);
-                    memcpy((void *) &currentRenderFrameData.stat_array[index], &current_cu.stats, sizeof(current_cu.stats));                    
-                }                
+                    memcpy((void *) &currentRenderFrameData.stat_array[index], &current_cu.stats,
+                           sizeof(current_cu.stats));
+                }
             }
             int ctu_x = current_cu.stats.x / 64;
             int ctu_y = current_cu.stats.y / 64;
             complete_ctus[ctu_y * widthInCtus + ctu_x] = 0;
-            if(ctu_x > 0) {
+            if (ctu_x > 0) {
                 complete_ctus[ctu_y * widthInCtus + ctu_x - 1] = 1;
             }
 
@@ -125,26 +129,33 @@ void readInput(const int width,
         }
 
         std::vector<float> max_values;
-max_func_params max_params = {&max_values, complete_ctus, (uint32_t)widthInCtus, (uint32_t)width / 4};
+        std::vector<float> max_distortion;
+        std::vector<float> max_bits;
+        max_func_params max_params = {&max_values, &max_distortion, &max_bits, complete_ctus, (uint32_t) widthInCtus,
+                                      (uint32_t) width / 4};
         std::vector<void *> data;
         data.emplace_back(&max_params);
         std::vector<std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> > funcs;
         funcs.emplace_back(getMaxCost);
-        for(int y = 0; y < height; y += 64) {
+        for (int y = 0; y < height; y += 64) {
             for (int x = 0; x < width; x += 64) {
                 cu_loc_t cu_loc;
                 uvg_cu_loc_ctor(&cu_loc, x, y, 64, 64);
                 walk_tree(currentRenderFrameData.stat_array, &cu_loc, 0, width, height, funcs, data);
             }
         }
-        if(max_values.size() > 0) {
+        if (max_values.size() > 0) {
             std::sort(max_values.begin(), max_values.end());
             currentRenderFrameData.max_values[0] = max_values.at(max_values.size() * 0.98);
+            std::sort(max_distortion.begin(), max_distortion.end());
+            currentRenderFrameData.max_values[1] = max_distortion.at(max_distortion.size() * 0.98);
+            std::sort(max_bits.begin(), max_bits.end());
+            currentRenderFrameData.max_values[2] = max_bits.at(max_bits.size() * 0.98);
         }
 
         timestamp = temp_timestamp;
 
-        if(!cfg.paused) {
+        if (!cfg.paused) {
             frame_out_index.fetch_add(1);
             frame_out_index.fetch_and(MAX_FRAME_COUNT - 1);
             // In case we have the same frame in and out index we just write on the same frame on the next loop
@@ -153,8 +164,7 @@ max_func_params max_params = {&max_values, complete_ctus, (uint32_t)widthInCtus,
                 frame_out_index.fetch_and(MAX_FRAME_COUNT - 1);
                 reset = false;
             }
-        }
-        else {
+        } else {
             reset = false;
         }
     }
@@ -168,11 +178,24 @@ void draw_colormap(void *data, const cu_loc_t *const cuLoc, const sub_image_stat
 
     heatmap_parameters *params = (heatmap_parameters *) data;
     sf::RenderTexture *edgeImage = params->edgeImage;
-    if(cuLoc->x != current_cu->x || cuLoc->y != current_cu->y) {
+    if (cuLoc->x != current_cu->x || cuLoc->y != current_cu->y) {
         return;
     }
 
-    const float value = current_cu->cost;
+    float value;
+    switch (params->heatmap_type) {
+        case 0:
+            break;
+        case 1:
+            value = current_cu->cost;
+            break;
+        case 2:
+            value = current_cu->dist;
+            break;
+        case 3:
+            value = current_cu->bits;
+            break;
+    }
     const float max_value = params->max_value;
     const float min_value = params->min_value;
     const float range = max_value - min_value;
@@ -469,7 +492,7 @@ drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imageText
 void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeRenderTexture,
                    const sub_image_stats *stat_array, sf::RenderWindow &window, const config &cfg,
                    float &previous_scale, const sf::Color *const colors, const float scaleX,
-                   RenderBufferManager &renderBufferManager, const std::unordered_set<uint32_t> * const modified_ctus,
+                   RenderBufferManager &renderBufferManager, const std::unordered_set<uint32_t> *const modified_ctus,
                    bool setting_changed, const float *max_value) {
     if (!cfg.show_grid && !cfg.show_intra && !cfg.show_transform && !cfg.show_isp && !cfg.show_heatmap) {
         return;
@@ -482,7 +505,7 @@ void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeR
     std::vector<std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> > funcs;
     std::vector<void *> data;
     func_parameters params = {&cuEdgeRenderTexture, colors, 0, 0, scaleX};
-    heatmap_parameters heatmap_params = {&cuEdgeRenderTexture, 0, 0, scaleX, max_value[0], 0};
+    heatmap_parameters heatmap_params = {&cuEdgeRenderTexture, 0, 0, scaleX, max_value[cfg.show_heatmap ? cfg.show_heatmap - 1 : 0], 0, cfg.show_heatmap};
     if (cfg.show_heatmap) {
         funcs.emplace_back(draw_colormap);
         data.push_back((void *) &heatmap_params);
@@ -720,7 +743,8 @@ int main() {
 
         window.draw(sprite);
         visualizeInfo(width, height, cuEdgeRenderTexture, currentFrameData.stat_array, window, cfg, previous_scale,
-                      colors, scaleX, renderBufferManager, currentFrameData.modified_ctus, setting_changed, currentFrameData.max_values);
+                      colors, scaleX, renderBufferManager, currentFrameData.modified_ctus, setting_changed,
+                      currentFrameData.max_values);
 
         if (cfg.show_zoom) {
             drawZoomWindow(colors, imageTexture, width, height, currentFrameData.stat_array, zoomOverlayTexture, window,
@@ -755,13 +779,13 @@ int main() {
         }
         frame_in_index.fetch_add(1);
         frame_in_index.fetch_and(MAX_FRAME_COUNT - 1);
-        if(frame_in_index == frame_out_index) {
+        if (frame_in_index == frame_out_index) {
             frame_in_index.fetch_sub(1);
             frame_in_index.fetch_and(MAX_FRAME_COUNT - 1);
         }
     }
     reader_thread.join();
-    for(int i = 0; i < MAX_FRAME_COUNT; ++i) {
+    for (int i = 0; i < MAX_FRAME_COUNT; ++i) {
         delete[] renderFrameDataVector.at(i).stat_array;
         delete renderFrameDataVector.at(i).modified_ctus;
         delete renderFrameDataVector.at(i).newImage;
