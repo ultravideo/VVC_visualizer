@@ -6,9 +6,11 @@
 #include <cstring>
 #include "cu.h"
 
+#include <iostream>
+
 // Return the next aligned address for *p. Result is at most alignment larger than p.
 #define ALIGNED_POINTER(p, alignment) (void*)((intptr_t)(p) + (alignment) - ((intptr_t)(p) % (alignment)))
-// 32 bytes is enough for AVX2
+// 32 offset is enough for AVX2
 #define SIMD_ALIGNMENT 32
 
 
@@ -47,7 +49,7 @@
 //
 //    for (int32_t i = 0; i < width*height; i += 16) {
 //
-//        // Load 16 bytes (16 luma pixels)
+//        // Load 16 offset (16 luma pixels)
 //        __m128i y_a = _mm_loadu_si128((__m128i const*) in_y);
 //        in_y += 16;
 //
@@ -167,73 +169,166 @@ uint8_t clamp_8bit(int32_t input)
 void yuv420_to_rgb_i_c(uint8_t* input, uint8_t* output, uint16_t width, uint16_t height)
 {
     // Luma pixels
-    for(int i = 0; i < width*height; ++i)
-    {
-        output[i*4] = input[i];
-        output[i*4+1] = input[i];
-        output[i*4+2] = input[i];
-        output[i*4+3] = 255;
-    }
+    //for(int i = 0; i < width*height; ++i)
+    //{
+    //    output[i*4] = input[i];
+    //    output[i*4+1] = input[i];
+    //    output[i*4+2] = input[i];
+    //    output[i*4+3] = 255;
+    //}
 
     uint32_t u_offset = width*height;
     uint32_t v_offset = width*height + height*width/4;
 
-    for(int y = 0; y < height/2; ++y)
+    //for(int y = 0; y < height/2; ++y)
+    //{
+    //    for(int x = 0; x < width/2; ++x)
+    //    {
+    //        int32_t cr = input[x + y*width/2 + u_offset] - 128;
+    //        int32_t cb = input[x + y*width/2 + v_offset] - 128;
+
+    //        int32_t rpixel = 146 * 2 * cb;
+    //        int32_t gpixel = -51 * 2 * cr - 74 * 2 * cb;
+    //        int32_t bpixel = 260 * 2 * cb;
+
+    //        int32_t row      = 8*y*width;
+    //        int32_t next_row = row + 4*width;
+
+    //        // add chroma components to rgb pixels
+    //        // R
+    //        int32_t pixel_value = 0;
+
+    //        pixel_value                = (output[8*x + row ] * 256 + rpixel) >> 8;
+    //        int32_t r_offset = 2;
+    //        output[8*x + row + r_offset]          = CLAMP_8BIT(pixel_value);
+
+    //        pixel_value                = (output[8*x + 4 + row ] * 256 + rpixel) >> 8;
+    //        output[8*x + 4 + row + r_offset]      = CLAMP_8BIT(pixel_value);
+
+    //        pixel_value                = (output[8*x +     next_row] * 256 + rpixel) >> 8;
+    //        output[8*x + next_row + r_offset]     = CLAMP_8BIT(pixel_value);
+
+    //        pixel_value                = (output[8*x + 4 + next_row] * 256 + rpixel) >> 8;
+    //        output[8*x + 4 + next_row + r_offset] = CLAMP_8BIT(pixel_value);
+
+    //        // G
+    //        pixel_value                = (output[8*x + row + 1] * 256 + gpixel) >> 8;
+    //        int32_t g_offset = 1;
+    //        output[8*x + row + g_offset]      = CLAMP_8BIT(pixel_value);
+
+    //        pixel_value                = (output[8*x + 4 + row + 1] * 256 + gpixel) >> 8;
+    //        output[8*x + 4 + row + g_offset]  = CLAMP_8BIT(pixel_value);
+
+    //        pixel_value                = (output[8*x +  next_row + 1] * 256 + gpixel) >> 8;
+    //        output[8*x + next_row + g_offset] = CLAMP_8BIT(pixel_value);
+
+    //        pixel_value                    = (output[8*x + 4 + next_row + 1] * 256 + gpixel) >> 8;
+    //        output[8*x + 4 + next_row + g_offset] = CLAMP_8BIT(pixel_value);
+
+    //        // B
+    //        pixel_value                = (output[8*x + row + 2] * 256 + bpixel) >> 8;
+    //        int32_t b_offset = 0;
+    //        output[8*x + row + b_offset]      = CLAMP_8BIT(pixel_value);
+
+    //        pixel_value                = (output[8*x + 4 + row + 2] * 256 + bpixel) >> 8;
+    //        output[8*x + 4 + row + b_offset]  = CLAMP_8BIT(pixel_value);
+
+    //        pixel_value                = (output[8*x + next_row + 2] * 256 + bpixel) >> 8;
+    //        output[8*x + next_row + b_offset] = CLAMP_8BIT(pixel_value);
+
+    //        pixel_value                    = (output[8*x + 4 + next_row + 2] * 256 + bpixel) >> 8;
+    //        output[8*x + 4 + next_row + b_offset] = CLAMP_8BIT(pixel_value);
+    //    }
+    //}
+
+    uint8_t* srcY = input;
+    uint8_t* srcU = input + width * height;
+    uint8_t* srcV = input + width * height + width * height / 4;
+    int rightShift = 0;
+    int yOffset = 0;
+    int cZero = 128;
+    const int RGBConv[5] = { 65536, 103206, -12276, -30679, 121608 };
+
+    for (unsigned yh = 0; yh < height / 2; yh++)
     {
-        for(int x = 0; x < width/2; ++x)
+      // Process two lines at once, always 4 RGB values at a time (they have the same U/V components)
+
+      int dstAddr1 = yh * 2 * width * 4;       // The RGB output address of line yh*2
+      int dstAddr2 = (yh * 2 + 1) * width * 4; // The RGB output address of line yh*2+1
+      int srcAddrY1 = yh * 2 * width;           // The Y source address of line yh*2
+      int srcAddrY2 = (yh * 2 + 1) * width;     // The Y source address of line yh*2+1
+      int srcAddrUV = yh * width / 2; // The UV source address of both lines (UV are identical)
+
+      for (unsigned xh = 0, x = 0; xh < width / 2; xh++, x += 2)
+      {
+        // Process four pixels (the ones for which U/V are valid
+
+        // Load UV and pre-multiply
+        const int U_tmp_G = (((int)srcU[srcAddrUV + xh] >> rightShift) - cZero) * RGBConv[2];
+        const int U_tmp_B = (((int)srcU[srcAddrUV + xh] >> rightShift) - cZero) * RGBConv[4];
+        const int V_tmp_R = (((int)srcV[srcAddrUV + xh] >> rightShift) - cZero) * RGBConv[1];
+        const int V_tmp_G = (((int)srcV[srcAddrUV + xh] >> rightShift) - cZero) * RGBConv[3];
+
+        const int b_offset = 2;
+        const int g_offset = 1;
+        const int r_offset = 0;
+        // Pixel top left
         {
-            int32_t cr = input[x + y*width/2 + u_offset] - 128;
-            int32_t cb = input[x + y*width/2 + v_offset] - 128;
+          const int Y_tmp = (((int)srcY[srcAddrY1 + x] >> rightShift) - yOffset) * RGBConv[0];
 
-            int32_t rpixel = cr + (cr >> 2) + (cr >> 3) + (cr >> 5);
-            int32_t gpixel = - ((cb >> 2) + (cb >> 4) + (cb >> 5)) - ((cr >> 1)+(cr >> 3)+(cr >> 4)+(cr >> 5));
-            int32_t bpixel = cb + (cb >> 1)+(cb >> 2)+(cb >> 6);
+          const int R_tmp = (Y_tmp + V_tmp_R) >> 16;
+          const int G_tmp = (Y_tmp + U_tmp_G + V_tmp_G) >> 16;
+          const int B_tmp = (Y_tmp + U_tmp_B) >> 16;
 
-            int32_t row      = 8*y*width;
-            int32_t next_row = row + 4*width;
-
-            // add chroma components to rgb pixels
-            // R
-            int32_t pixel_value = 0;
-
-            pixel_value                = output[8*x + row ] + rpixel;
-            output[8*x + row + 2]          = CLAMP_8BIT(pixel_value);
-
-            pixel_value                = output[8*x + 4 + row ] + rpixel;
-            output[8*x + 4 + row + 2]      = CLAMP_8BIT(pixel_value);
-
-            pixel_value                = output[8*x +     next_row] + rpixel;
-            output[8*x + next_row + 2]     = CLAMP_8BIT(pixel_value);
-
-            pixel_value                = output[8*x + 4 + next_row] + rpixel;
-            output[8*x + 4 + next_row + 2] = CLAMP_8BIT(pixel_value);
-
-            // G
-            pixel_value                = output[8*x + row + 1] + gpixel;
-            output[8*x + row + 1]      = CLAMP_8BIT(pixel_value);
-
-            pixel_value                = output[8*x + 4 + row + 1] + gpixel;
-            output[8*x + 4 + row + 1]  = CLAMP_8BIT(pixel_value);
-
-            pixel_value                = output[8*x +  next_row + 1] + gpixel;
-            output[8*x + next_row + 1] = CLAMP_8BIT(pixel_value);
-
-            pixel_value                    = output[8*x + 4 + next_row + 1] + gpixel;
-            output[8*x + 4 + next_row + 1] = CLAMP_8BIT(pixel_value);
-
-            // B
-            pixel_value                = output[8*x + row + 2] + bpixel;
-            output[8*x + row + 0]      = CLAMP_8BIT(pixel_value);
-
-            pixel_value                = output[8*x + 4 + row + 2] + bpixel;
-            output[8*x + 4 + row + 0]  = CLAMP_8BIT(pixel_value);
-
-            pixel_value                = output[8*x + next_row + 2] + bpixel;
-            output[8*x + next_row + 0] = CLAMP_8BIT(pixel_value);
-
-            pixel_value                    = output[8*x + 4 + next_row + 2] + bpixel;
-            output[8*x + 4 + next_row + 0] = CLAMP_8BIT(pixel_value);
+          output[dstAddr1 + b_offset] = CLAMP_8BIT(B_tmp);
+          output[dstAddr1 + g_offset] = CLAMP_8BIT(G_tmp);
+          output[dstAddr1 + r_offset] = CLAMP_8BIT(R_tmp);
+          output[dstAddr1 + 3] = 255;
+          dstAddr1 += 4;
         }
+        // Pixel top right
+        {
+          const int Y_tmp = (((int)srcY[srcAddrY1 + x + 1] >> rightShift) - yOffset) * RGBConv[0];
+
+          const int R_tmp = (Y_tmp + V_tmp_R) >> 16;
+          const int G_tmp = (Y_tmp + U_tmp_G + V_tmp_G) >> 16;
+          const int B_tmp = (Y_tmp + U_tmp_B) >> 16;
+
+          output[dstAddr1 + b_offset] = CLAMP_8BIT(B_tmp);
+          output[dstAddr1 + g_offset] = CLAMP_8BIT(G_tmp);
+          output[dstAddr1 + r_offset] = CLAMP_8BIT(R_tmp);
+          output[dstAddr1 + 3] = 255;
+          dstAddr1 += 4;
+        }
+        // Pixel bottom left
+        {
+          const int Y_tmp = (((int)srcY[srcAddrY2 + x] >> rightShift) - yOffset) * RGBConv[0];
+
+          const int R_tmp = (Y_tmp + V_tmp_R) >> 16;
+          const int G_tmp = (Y_tmp + U_tmp_G + V_tmp_G) >> 16;
+          const int B_tmp = (Y_tmp + U_tmp_B) >> 16;
+
+          output[dstAddr2 + b_offset] = CLAMP_8BIT(B_tmp);
+          output[dstAddr2 + g_offset] = CLAMP_8BIT(G_tmp);
+          output[dstAddr2 + r_offset] = CLAMP_8BIT(R_tmp);
+          output[dstAddr2 + 3] = 255;
+          dstAddr2 += 4;
+        }
+        // Pixel bottom right
+        {
+          const int Y_tmp = (((int)srcY[srcAddrY2 + x + 1] >> rightShift) - yOffset) * RGBConv[0];
+
+          const int R_tmp = (Y_tmp + V_tmp_R) >> 16;
+          const int G_tmp = (Y_tmp + U_tmp_G + V_tmp_G) >> 16;
+          const int B_tmp = (Y_tmp + U_tmp_B) >> 16;
+
+          output[dstAddr2 + b_offset] = CLAMP_8BIT(B_tmp);
+          output[dstAddr2 + g_offset] = CLAMP_8BIT(G_tmp);
+          output[dstAddr2 + r_offset] = CLAMP_8BIT(R_tmp);
+          output[dstAddr2 + 3] = 255;
+          dstAddr2 += 4;
+        }
+      }
     }
 }
 
@@ -260,20 +355,58 @@ sub_image readOneCU(std::ifstream &data_file) {
     return cu;
 }
 
-sub_image readOneCU(void *data_file) {
-    uint8_t temp_buffer[8192];
-    sub_image cu;
-    int rc = zmq_recv(data_file, temp_buffer, 8192, 0);
+std::vector<sub_image_stats> readOneCU(void *data_file, sf::Rect<uint32_t> &rect_out, uint8_t *image) {
+    std::vector<sub_image_stats> cus;
+    uint8_t temp_buffer[8192 * 2];
+    int rc = zmq_recv(data_file, temp_buffer, 8192 * 2, 0);
     if (rc == -1) {
-        cu.stats.width = 0;
-        cu.stats.height = 0;
-        return cu;
+        return cus;
     }
-    memcpy(&cu.stats, temp_buffer + 1, sizeof(cu.stats));
+    if(temp_buffer[0] < 2) {
+      sub_image cu;
+      memcpy(&cu.stats, temp_buffer + 1, sizeof(cu.stats));
 
-    cu.rect = sf::Rect<uint32_t>(cu.stats.x, cu.stats.y, cu.stats.width, cu.stats.height);
-    yuv420_to_rgb_i_c(temp_buffer + 1 + sizeof(cu.stats), cu.image, cu.stats.width, cu.stats.height);
-    return cu;
+      rect_out = sf::Rect<uint32_t>(cu.stats.x, cu.stats.y, cu.stats.width, cu.stats.height);
+      yuv420_to_rgb_i_c(temp_buffer + 1 + sizeof(cu.stats), image, cu.stats.width, cu.stats.height);
+      cus.push_back(cu.stats);
+      return cus;
+    }
+    uint16_t num_cus = 0;
+    uint64_t offset = 1;
+    memcpy(&num_cus, temp_buffer + offset, 2); offset += 2;
+    uint64_t timestamp = 0;
+    memcpy(&timestamp, temp_buffer + offset, 8); offset += 8;
+    uint8_t frame_num = 0;
+    memcpy(&frame_num, temp_buffer + offset, 1); offset += 1;
+    uint8_t area_width = 0;
+    memcpy(&area_width, temp_buffer + offset, 1); offset += 1;
+    uint8_t area_height = 0;
+    memcpy(&area_height, temp_buffer + offset, 1); offset += 1;
+    for(int i = 0; i < num_cus; ++i) {
+      sub_image_stats cu;
+      cu.timestamp = timestamp;
+      cu.frame_num = frame_num;
+      memcpy(&cu.x, temp_buffer + offset, 2); offset += 2;
+      memcpy(&cu.y, temp_buffer + offset, 2); offset += 2;
+      memcpy(&cu.width, temp_buffer + offset, 1); offset += 1;
+      memcpy(&cu.height, temp_buffer + offset, 1); offset += 1;
+      memcpy( &cu.split_tree, temp_buffer + offset, 4); offset += 4;
+      memcpy( &cu.qp, temp_buffer + offset, 1); offset++;
+      memcpy( &cu.intra_mode, temp_buffer + offset, 1); offset++;
+      memcpy( &cu.is_mip, temp_buffer + offset, 1); offset++;
+      memcpy( &cu.mip_transpose, temp_buffer + offset, 1); offset++;
+      memcpy( &cu.mrl, temp_buffer + offset, 1); offset++;
+      memcpy( &cu.isp, temp_buffer + offset, 1); offset++;
+      memcpy( &cu.lfnst, temp_buffer + offset, 1); offset++;
+      memcpy( &cu.tr_idx, temp_buffer + offset, 1); offset++;
+      memcpy( &cu.cost, temp_buffer + offset, 4); offset += 4;
+      memcpy( &cu.bits, temp_buffer + offset, 4); offset += 4;
+      memcpy( &cu.dist, temp_buffer + offset, 4); offset += 4;
+      cus.emplace_back(cu);
+    }
+    rect_out = sf::Rect<uint32_t>(cus[0].x, cus[0].y, area_width, area_height);
+    yuv420_to_rgb_i_c(temp_buffer + offset, image, area_width, area_height);
+    return cus;
 }
 
 void uvg_cu_loc_ctor(cu_loc_t *loc, int x, int y, int width, int height) {
@@ -359,6 +492,11 @@ void walk_tree(const sub_image_stats * const tree, cu_loc_t const *const cuLoc, 
     unsigned int split_data = GET_SPLITDATA(current_node, depth);
 
     if (split_data == NO_SPLIT) {
+      //if (current_node->x != cuLoc->x || current_node->y != cuLoc->y) {
+      //  if(current_node->width != 0) {
+      //    return;
+      //  }
+      //}
         for (int i = 0; i < funcs.size(); i++) {
             funcs[i](data[i], cuLoc, current_node);
         }

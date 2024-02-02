@@ -38,6 +38,7 @@ struct heatmap_parameters {
     float max_value;
     float min_value;
     uint8_t heatmap_type;
+    const std::unordered_set<uint32_t>* const modified_ctus;
 };
 
 
@@ -70,9 +71,12 @@ void getMaxCost(void *params, const cu_loc_t *const cuLoc, const sub_image_stats
         return;
     }
     if (current_cu->height == 0) return;
-    (*local_params->max_costs).emplace_back(current_cu->cost);
-    (*local_params->max_distortion).emplace_back(current_cu->dist);
-    (*local_params->max_bits).emplace_back(current_cu->bits);
+  if(current_cu->x != cuLoc->x || current_cu->y != cuLoc->y) {
+    std::cout << "Something wrong\n";
+  }
+    (*local_params->max_costs).emplace_back(current_cu->cost / (cuLoc->width * cuLoc->height));
+    (*local_params->max_distortion).emplace_back(current_cu->dist / (cuLoc->width * cuLoc->height));
+    (*local_params->max_bits).emplace_back(current_cu->bits / (cuLoc->width * cuLoc->height));
 }
 
 
@@ -81,8 +85,7 @@ void readInput(const int width,
                void *receiver,
                std::vector<renderFrameData> &renderFrameDataVector,
                const config &cfg) {
-    sub_image current_cu;
-    current_cu.stats.timestamp = 0;
+    int64_t latest_timestamp = 0;
     int64_t timestamp = 0;
     bool reset = false;
     const int widthInCtus = ceil_div(width, 64);
@@ -90,7 +93,6 @@ void readInput(const int width,
     uint8_t *complete_ctus = new uint8_t[num_ctus];
     memset(complete_ctus, 0, num_ctus);
     while (cfg.running) {
-        int64_t temp_timestamp = current_cu.stats.timestamp;
         renderFrameData &currentRenderFrameData = renderFrameDataVector.at(frame_out_index);
         if (reset) {
             currentRenderFrameData.modified_ctus->clear();
@@ -102,30 +104,50 @@ void readInput(const int width,
         }
         reset = true;
 
-        while ((current_cu.stats.timestamp - 33'000'000) - timestamp < 33'000'000) {
-            current_cu = readOneCU(receiver);
-            temp_timestamp = current_cu.stats.timestamp;
+        while ((latest_timestamp - 33'000'000) - timestamp < 33'000'000) {
+            sf::Rect<uint32_t> rect;
+            uint8_t image[64 * 64 * 4];
+            std::vector<sub_image_stats> cus = readOneCU(receiver, rect, image);
+            latest_timestamp = cus.back().timestamp;
 
-            for (int y = current_cu.rect.top; y < current_cu.rect.top + current_cu.rect.height - 1; y += 4) {
-                for (int x = current_cu.rect.left; x < current_cu.rect.left + current_cu.rect.width - 1; x += 4) {
-                    int index = (y / 4) * (width / 4) + (x / 4);
-                    memcpy((void *) &currentRenderFrameData.stat_array[index], &current_cu.stats,
-                           sizeof(current_cu.stats));
+            int64_t old_timestamp = currentRenderFrameData.stat_array[rect.top / 4 * (width / 4) + rect.left / 4].timestamp;
+          for(auto &cu: cus) {
+            if(old_timestamp < latest_timestamp) {
+              for (int y = cu.y; y < cu.y + cu.height - 1; y += 4) {
+                for (int x = cu.x; x < cu.x + cu.width - 1; x += 4) {
+                  int index = (y / 4) * (width / 4) + (x / 4);
+                  memcpy((void *) &currentRenderFrameData.stat_array[index], &cu,sizeof(cu));
                 }
+              }
             }
-            int ctu_x = current_cu.stats.x / 64;
-            int ctu_y = current_cu.stats.y / 64;
+          }
+            int ctu_x = cus.back().x / 64;
+            int ctu_y = cus.back().y / 64;
             complete_ctus[ctu_y * widthInCtus + ctu_x] = 0;
             if (ctu_x > 0) {
                 complete_ctus[ctu_y * widthInCtus + ctu_x - 1] = 1;
+                for (int y = 0; y < 64; y += 4) {
+                  for (int x = 0; x < 64; x += 4) {
+                    uint32_t temp_x = (ctu_x - 1) * 64 + x;
+                    uint32_t temp_y = ctu_y * 64 + y;
+                    if (temp_y >= height) continue;
+                    int index = (temp_y / 4) * (width / 4) + (temp_x / 4);
+                    const sub_image_stats*  temp_a = &currentRenderFrameData.stat_array[index];
+                    bool x_within = (temp_a->x <= temp_x) && ((temp_a->x + temp_a->width) > temp_x);
+                    bool y_within = (temp_a->y <= temp_y) && ((temp_a->y + temp_a->height) > temp_y);
+                    if (!(y_within || x_within)) {
+                      // std::cout << "Not inside" << temp_x << " " << temp_y << "\n";
+                    }
+                  }
+                }
             }
 
-            currentRenderFrameData.modified_ctus->insert(((current_cu.stats.y / 64) << 16) | (current_cu.stats.x / 64));
+            currentRenderFrameData.modified_ctus->insert(((cus.back().y / 64) << 16) | (cus.back().x / 64));
 
             sf::Image cuImage;
-            cuImage.create(current_cu.stats.width, current_cu.stats.height, current_cu.image);
+            cuImage.create(rect.width, rect.height, image);
 
-            currentRenderFrameData.newImage->copy(cuImage, current_cu.stats.x, current_cu.stats.y);
+            currentRenderFrameData.newImage->copy(cuImage, rect.left, rect.top);
         }
 
         std::vector<float> max_values;
@@ -153,7 +175,7 @@ void readInput(const int width,
             currentRenderFrameData.max_values[2] = max_bits.at(max_bits.size() * 0.98);
         }
 
-        timestamp = temp_timestamp;
+        timestamp = latest_timestamp;
 
         if (!cfg.paused) {
             frame_out_index.fetch_add(1);
@@ -181,6 +203,13 @@ void draw_colormap(void *data, const cu_loc_t *const cuLoc, const sub_image_stat
     if (cuLoc->x != current_cu->x || cuLoc->y != current_cu->y) {
         return;
     }
+    uint32_t ctu_index = cuLoc->x / 64 | ((cuLoc->y / 64)  << 16);
+    if (current_cu->x != cuLoc->x || current_cu->y != cuLoc->y) {
+      auto list_const_iterator = params->modified_ctus->find(ctu_index);
+      if (current_cu->width != 0 && list_const_iterator != params->modified_ctus->end()) {
+        // std::cout << "Error: cuLoc does not match current_node" << std::endl;
+      }
+    }
 
     float value;
     switch (params->heatmap_type) {
@@ -196,12 +225,13 @@ void draw_colormap(void *data, const cu_loc_t *const cuLoc, const sub_image_stat
             value = current_cu->bits;
             break;
     }
+    value /= cuLoc->width * cuLoc->height;
     const float max_value = params->max_value;
     const float min_value = params->min_value;
     const float range = max_value - min_value;
     const float normalized_value = clamp((value - min_value) / range, 0.0f, 1.0f);
     const uint8_t index = normalized_value * 255;
-    const sf::Color color = sf::Color(r[index], g[index], b[index], 128);
+    const sf::Color color = sf::Color(r[index], g[index],  b[index], 128);
 
     // Fill the area of the CU with the color
     sf::RectangleShape rectangle(sf::Vector2f(cuLoc->width * params->scale, cuLoc->height * params->scale));
@@ -505,7 +535,7 @@ void visualizeInfo(const int width, const int height, sf::RenderTexture &cuEdgeR
     std::vector<std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> > funcs;
     std::vector<void *> data;
     func_parameters params = {&cuEdgeRenderTexture, colors, 0, 0, scaleX};
-    heatmap_parameters heatmap_params = {&cuEdgeRenderTexture, 0, 0, scaleX, max_value[cfg.show_heatmap ? cfg.show_heatmap - 1 : 0], 0, cfg.show_heatmap};
+    heatmap_parameters heatmap_params = {&cuEdgeRenderTexture, 0, 0, scaleX, max_value[cfg.show_heatmap ? cfg.show_heatmap - 1 : 0], 0, cfg.show_heatmap, modified_ctus};
     if (cfg.show_heatmap) {
         funcs.emplace_back(draw_colormap);
         data.push_back((void *) &heatmap_params);
