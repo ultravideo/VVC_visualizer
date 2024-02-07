@@ -365,8 +365,8 @@ void drawTransforms(void *data, const cu_loc_t *const cuLoc, const sub_image_sta
             (cuLoc->x + cuLoc->width / 2 - params->top_left_x) * params->scale,
             (cuLoc->y + cuLoc->height / 2 - params->top_left_y) * params->scale);
 
-    sf::Color color = sf::Color::Red;
-    if (current_cu->tr_idx == 2) {
+    sf::Color color = current_cu->tr_idx != 0 ?sf::Color::Blue : sf::Color::Red;
+    if (current_cu->tr_idx == 2 ) {
         const sf::Vector2f bottom_right = sf::Vector2f(
                 (cuLoc->x + cuLoc->width - params->top_left_x) * params->scale - 2,
                 (cuLoc->y + cuLoc->height - params->top_left_y) * params->scale - 2);
@@ -377,7 +377,7 @@ void drawTransforms(void *data, const cu_loc_t *const cuLoc, const sub_image_sta
                 sf::Vertex(sf::Vector2f(bottom_right.x, bottom_right.y), color),
         };
         edgeImage->draw(line, 4, sf::Lines);
-    } else if (current_cu->tr_idx == 3) {
+    } else if (current_cu->tr_idx == 3 || current_cu->lfnst == 2) {
         const sf::Vector2f top_right = sf::Vector2f(
                 (cuLoc->x + cuLoc->width - params->top_left_x) * params->scale - 2,
                 (cuLoc->y - params->top_left_y) * params->scale + 2);
@@ -399,7 +399,7 @@ void drawTransforms(void *data, const cu_loc_t *const cuLoc, const sub_image_sta
                 sf::Vertex(sf::Vector2f(bottom_left.x, bottom_left.y), color),
         };
         edgeImage->draw(line, 4, sf::Lines);
-    } else if (current_cu->tr_idx == 5) {
+    } else if (current_cu->tr_idx == 5 || current_cu->lfnst == 1) {
         const sf::Vector2f top_left = sf::Vector2f(
                 (cuLoc->x - params->top_left_x) * params->scale + 2,
                 (cuLoc->y - params->top_left_y) * params->scale + 2);
@@ -461,7 +461,7 @@ void
 drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imageTexture, const int width, const int height,
                const sub_image_stats *const stat_array, sf::RenderTexture &zoomOverlayTexture, sf::RenderWindow &window,
                sf::Vector2i &previous_mouse_position, sf::Image &zoomImage, const sf::Vector2i &mousePosition,
-               const float scaleX, const float scaleY) {
+               const float scaleX, const float scaleY, const config& cfg, const float* max_value) {
     int top_right_x_of_zoom_area = clamp(static_cast<int>(mousePosition.x / scaleX - 32), 0, width - 64);
     int top_right_y_of_zoom_area = clamp(static_cast<int>(mousePosition.y / scaleY - 32), 0, height - 64);
 
@@ -483,13 +483,25 @@ drawZoomWindow(const sf::Color *const colors, const sf::RenderTexture &imageText
     }
     zoomOverlayTexture.clear(sf::Color::Transparent);
 
+    heatmap_parameters hm_params = {
+        &zoomOverlayTexture,
+                              static_cast<uint32_t>(top_left_needed_cu_x),
+                              static_cast<uint32_t>(top_left_needed_cu_y), 4, max_value[cfg.show_heatmap ? cfg.show_heatmap - 1 : 0], 0, std::min(cfg.show_heatmap, (uint8_t)1), NULL
+    };
+
     func_parameters params = {&zoomOverlayTexture, colors,
                               static_cast<uint32_t>(top_left_needed_cu_x),
                               static_cast<uint32_t>(top_left_needed_cu_y), 4};
     std::vector<std::function<void(void *, const cu_loc_t *const, const sub_image_stats *const)> > funcs;
     std::vector<void *> data;
+    funcs.push_back(draw_colormap);
+    data.push_back(&hm_params);
     funcs.emplace_back(draw_cu);
+    data.push_back((void*)&params);
+    funcs.emplace_back(drawISP);
     data.push_back((void *) &params);
+    funcs.emplace_back(drawTransforms);
+    data.push_back((void*)&params);
     funcs.emplace_back(drawIntraModes);
     data.push_back((void *) &params);
 
@@ -779,7 +791,7 @@ int main() {
         if (cfg.show_zoom) {
             drawZoomWindow(colors, imageTexture, width, height, currentFrameData.stat_array, zoomOverlayTexture, window,
                            previous_mouse_position,
-                           zoomImage, mousePosition, scaleX, scaleY);
+                           zoomImage, mousePosition, scaleX, scaleY, cfg, currentFrameData.max_values);
 
 
         }
