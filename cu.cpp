@@ -355,13 +355,14 @@ sub_image readOneCU(std::ifstream &data_file) {
     return cu;
 }
 
-std::vector<sub_image_stats> readOneCU(void *data_file, sf::Rect<uint32_t> &rect_out, uint8_t *image) {
+std::vector<sub_image_stats> readOneCU(void *data_file, sf::Rect<uint32_t> &rect_out, uint8_t *image, uint8_t& type) {
     std::vector<sub_image_stats> cus;
     uint8_t temp_buffer[8192 * 2];
     int rc = zmq_recv(data_file, temp_buffer, 8192 * 2, 0);
     if (rc == -1) {
         return cus;
     }
+    type = temp_buffer[0];
     if(temp_buffer[0] < 2) {
       sub_image cu;
       memcpy(&cu.stats, temp_buffer + 1, sizeof(cu.stats));

@@ -14,6 +14,9 @@
 
 #define _USE_MATH_DEFINES
 
+#include <sstream>
+#include <iomanip>
+
 #include "math.h"
 #include "config.h"
 #include "eventHandler.h"
@@ -47,6 +50,7 @@ struct renderFrameData {
     sf::Image *newImage;
     std::unordered_set<uint32_t> *modified_ctus;
     float max_values[6];
+    uint32_t pixels_completed;
 };
 
 #define MAX_FRAME_COUNT 8
@@ -101,13 +105,15 @@ void readInput(const int width,
                    renderFrameDataVector.at((frame_out_index - 1) & (MAX_FRAME_COUNT - 1)).stat_array,
                    sizeof(sub_image_stats) * (width / 4) * (height / 4));
             memset((void *) currentRenderFrameData.max_values, 0, sizeof(float) * 6);
+            currentRenderFrameData.pixels_completed = 0;
         }
         reset = true;
 
         while ((latest_timestamp - 33'000'000) - timestamp < 33'000'000) {
             sf::Rect<uint32_t> rect;
             uint8_t image[64 * 64 * 4];
-            std::vector<sub_image_stats> cus = readOneCU(receiver, rect, image);
+            uint8_t type;
+            std::vector<sub_image_stats> cus = readOneCU(receiver, rect, image, type);
             latest_timestamp = cus.back().timestamp;
 
             int64_t old_timestamp = currentRenderFrameData.stat_array[rect.top / 4 * (width / 4) + rect.left / 4].timestamp;
@@ -121,6 +127,9 @@ void readInput(const int width,
               }
             }
           }
+            if (type == 2 && rect.height == 64 && rect.width == 64) {
+              currentRenderFrameData.pixels_completed += 64 * 64;
+            }
             int ctu_x = cus.back().x / 64;
             int ctu_y = cus.back().y / 64;
             complete_ctus[ctu_y * widthInCtus + ctu_x] = 0;
@@ -702,6 +711,14 @@ int main() {
             "  1-8: Toggle encoding speed\n"
             "ESC: Exit\n");
 
+    sf::Text fpsText;
+    fpsText.setFont(font);
+    fpsText.setCharacterSize(16);
+    fpsText.setFillColor(sf::Color::White);
+    fpsText.setOutlineColor(sf::Color::Black);
+    fpsText.setOutlineThickness(2);
+    fpsText.setPosition(width - 192, 20);
+
     // Create a window
     sf::RenderWindow window(sf::VideoMode(width, height), "VVC Visualizer");
 
@@ -742,6 +759,14 @@ int main() {
             std::ref(cfg));
     //readInput(width, height, receiver, renderFrameDataVector);
 
+
+    std::vector<uint32_t> pixels_encoded;
+    pixels_encoded.reserve(30);
+    for(int i = 0; i < 30; ++i) {
+             pixels_encoded.push_back(0);
+    }
+    uint32_t pixel_encode_index = 0;
+
     while (cfg.running) {
         renderFrameData &currentFrameData = renderFrameDataVector.at(frame_in_index);
 
@@ -773,6 +798,7 @@ int main() {
 
         if (previous_scale != scaleX) {
             renderBufferManager.changeScale(scaleX);
+            fpsText.setPosition(width * scaleX - 192, 20);
         }
 
         // Display the frame
@@ -799,6 +825,19 @@ int main() {
         uint64_t render_end_time_stamp;
         GET_TIME(ts, render_end_time_stamp);
 
+        double pixels = 0;
+        for (int i = 0; i < 30; ++i) {
+                     pixels += pixels_encoded.at(i);
+        }
+        double fps = pixels / (width * height);
+        std::ostringstream oss;
+        oss << "Encoding Speed: " << std::fixed << std::setprecision(2) << fps << " fps";
+
+        // Retrieve the formatted string
+        std::string formattedString = oss.str();
+        fpsText.setString(formattedString);
+        window.draw(fpsText);
+
         if (cfg.show_debug) {
             std::string text_string =
                     std::to_string((data_process_end_timestamp - render_start_timestamp) / 1000000) + " ms\n";
@@ -824,6 +863,10 @@ int main() {
         if (frame_in_index == frame_out_index) {
             frame_in_index.fetch_sub(1);
             frame_in_index.fetch_and(MAX_FRAME_COUNT - 1);
+        }
+        else {
+          pixels_encoded[pixel_encode_index] = currentFrameData.pixels_completed;
+          pixel_encode_index = (pixel_encode_index + 1) % 30;
         }
     }
     reader_thread.join();

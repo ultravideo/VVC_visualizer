@@ -52,7 +52,7 @@ struct sub_image {
 };
 
 sub_image readOneCU(std::ifstream &data_file);
-std::vector<sub_image_stats> readOneCU(void* data_file, sf::Rect<uint32_t>& rect_out, uint8_t* image);
+std::vector<sub_image_stats> readOneCU(void* data_file, sf::Rect<uint32_t>& rect_out, uint8_t* image, uint8_t& type);
 
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 #define GET_SPLITDATA(CU, curDepth) ((CU)->split_tree >> ((MAX((curDepth), 0) * 3)) & 7)
