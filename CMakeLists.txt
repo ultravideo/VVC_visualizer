@@ -21,5 +21,4 @@ add_executable(visualizer main.cpp cu.cpp
         eventHandler.h
         RenderBufferManager.cpp
         RenderBufferManager.h)
-target_include_directories(visualizer PUBLIC "G:/Local/sainio/Documents/libzmq/out/install/include")
-target_link_libraries(visualizer sfml-system sfml-window sfml-graphics "G:/Local/sainio/Documents/libzmq/out/install/lib/libzmq-mt-4_3_6.lib")
+target_link_libraries(visualizer sfml-system sfml-window sfml-graphics libzmq)

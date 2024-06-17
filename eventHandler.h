@@ -22,6 +22,9 @@ class EventHandler {
     uint32_t width;
     uint32_t height;
 
+    uint32_t screen_width;
+    uint32_t screen_height;
+
     void *control_socket = nullptr;
 public:
     EventHandler(uint32_t width, uint32_t height, void* socket);

@@ -13,6 +13,8 @@ EventHandler::EventHandler(uint32_t width, uint32_t height, void* socket) :
   height(height),
   control_socket(socket) {
 #ifdef _MSC_VER
+  screen_height = sf::VideoMode::getDesktopMode().height;
+  screen_width = sf::VideoMode::getDesktopMode().width;
   QueryPerformanceFrequency(&Frequency);
 #endif
 }
@@ -159,7 +161,7 @@ void EventHandler::toggleFullscreen(config &cfg, sf::RenderWindow &window) const
     if (cfg.fullscreen) {
         window.create(sf::VideoMode(width, height), "VVC Visualizer", sf::Style::Default);
     } else {
-        window.create(sf::VideoMode(2560, 1440), "VVC Visualizer", sf::Style::Fullscreen);
+        window.create(sf::VideoMode(screen_width, screen_height), "VVC Visualizer", sf::Style::Fullscreen);
     }
     cfg.fullscreen = !cfg.fullscreen;
 }

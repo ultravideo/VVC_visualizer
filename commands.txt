@@ -1,1 +1,4 @@
 ffmpeg -f dshow -video_size 1280x720 -framerate 30 -pixel_format  yuyv422 -i video="Logitech BRIO" -filter:v "format=yuv420p" -pixel_format yuv420p -f rawvideo - | uvg266 -i - --input-res 1280x720 --preset veryslow --rd 3 -p 1 --mrl --mip --mts intra --isp --no-cpuid --lfnst --mtt-depth-intra 3 --pu-depth-intra 0-8 -o a --threads 12
+
+ffmpeg -list_devices true -f dshow -i dummy
+ffmpeg -list_options true -f dshow -i video="Logitech Webcam C930e"

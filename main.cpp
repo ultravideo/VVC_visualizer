@@ -637,6 +637,12 @@ int main() {
     sf::RenderTexture imageTexture;
     const int width = 1280;
     const int height = 720;
+
+    const int screen_width = sf::VideoMode::getDesktopMode().width;
+    const int screen_height = sf::VideoMode::getDesktopMode().height;
+
+    const float fullscree_scale = std::min((float) screen_width / width, (float) screen_height / height);
+
     imageTexture.create(width, height);
     imageTexture.clear();
 
@@ -793,8 +799,8 @@ int main() {
         sf::Vector2u windowSize = window.getSize();
 
         // Calculate the scale factors for the sprite
-        float scaleX = cfg.fullscreen ? 2 : sqrt(static_cast<float>(windowSize.x) / imageTexture.getSize().x);
-        float scaleY = cfg.fullscreen ? 2 : sqrt(static_cast<float>(windowSize.y) / imageTexture.getSize().y);
+        float scaleX = cfg.fullscreen ? fullscree_scale : sqrt(static_cast<float>(windowSize.x) / imageTexture.getSize().x);
+        float scaleY = cfg.fullscreen ? fullscree_scale : sqrt(static_cast<float>(windowSize.y) / imageTexture.getSize().y);
 
         if (previous_scale != scaleX) {
             renderBufferManager.changeScale(scaleX);
